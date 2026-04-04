@@ -2,7 +2,7 @@
 
 const nodemailer = require('nodemailer');
 
-// Build a transport once.  In test/dev without SMTP creds we use a
+// Build  transport once.  In test/dev without SMTP creds we use a
 // "stub" transport that just logs – this means the app boots and tests
 // pass without any external service.
 function buildTransport() {

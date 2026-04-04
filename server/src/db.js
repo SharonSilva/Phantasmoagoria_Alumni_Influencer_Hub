@@ -26,7 +26,7 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 
-// ─── Helpers
+// Helpers
 function id() { return uuidv4(); }
 
 function today() {
@@ -39,7 +39,7 @@ function dateStr(daysOffset = 0) {
   return d.toISOString().split('T')[0];
 }
 
-// ─── Collections 
+// Collections 
 const db = {
   users:             [],
   emailTokens:       [],   // { id, userId, token, expiresAt, used }
@@ -60,11 +60,11 @@ const db = {
   apiUsageLogs:      [],   // { id, apiKeyId, endpoint, method, timestamp, statusCode }
 };
 
-// ─── Seed
+//Seed
 async function seed() {
   const password = await bcrypt.hash('Password1!', 12);
 
-  // ── Users
+  // Users
   const users = [
     { id: 'u1', email: 'priya.sharma@alumni.eastminster.ac.uk',   password, name: 'Priya Sharma',   role: 'alumni', emailVerified: true,  createdAt: '2024-01-10T10:00:00Z', updatedAt: '2024-01-10T10:00:00Z' },
     { id: 'u2', email: 'james.okafor@alumni.eastminster.ac.uk',   password, name: 'James Okafor',   role: 'alumni', emailVerified: true,  createdAt: '2024-01-11T10:00:00Z', updatedAt: '2024-01-11T10:00:00Z' },
@@ -76,7 +76,7 @@ async function seed() {
   ];
   db.users.push(...users);
 
-  // ── Profiles 
+  // Profiles 
   const profiles = [
     { id: 'p1', userId: 'u1', graduationYear: 2018, bio: 'Passionate about AI/ML.', linkedInUrl: 'https://linkedin.com/in/priya-sharma-dev', photoUrl: null, currentRole: 'Senior Software Engineer', currentEmployer: 'Google DeepMind', location: 'London, UK', appearanceCount: 2, appearanceCountMonth: today().slice(0, 7), isActiveToday: false, profileCompleted: true, createdAt: '2024-01-10T10:00:00Z' },
     { id: 'p2', userId: 'u2', graduationYear: 2019, bio: 'Specialising in renewable energy.', linkedInUrl: 'https://linkedin.com/in/james-okafor-eng', photoUrl: null, currentRole: 'Lead Electrical Engineer', currentEmployer: 'Siemens Energy', location: 'Manchester, UK', appearanceCount: 1, appearanceCountMonth: today().slice(0, 7), isActiveToday: false, profileCompleted: true, createdAt: '2024-01-11T10:00:00Z' },
@@ -86,7 +86,7 @@ async function seed() {
   ];
   db.profiles.push(...profiles);
 
-  // ── Degrees 
+  // Degrees 
   db.degrees.push(
     { id: id(), profileId: 'p1', title: 'BSc Computer Science', institution: 'University of Eastminster', url: 'https://eastminster.ac.uk/courses/bsc-cs', completedDate: '2018-06-15' },
     { id: id(), profileId: 'p2', title: 'BEng Electrical Engineering', institution: 'University of Eastminster', url: 'https://eastminster.ac.uk/courses/beng-ee', completedDate: '2019-06-14' },
@@ -95,7 +95,7 @@ async function seed() {
     { id: id(), profileId: 'p5', title: 'BA Business Management', institution: 'University of Eastminster', url: 'https://eastminster.ac.uk/courses/ba-bm', completedDate: '2021-06-18' },
   );
 
-  // ── Certifications 
+  // Certifications 
   db.certifications.push(
     { id: id(), profileId: 'p1', name: 'AWS Solutions Architect', issuer: 'Amazon Web Services', url: 'https://aws.amazon.com/certification/certified-solutions-architect-associate', completedDate: '2022-03-10' },
     { id: id(), profileId: 'p1', name: 'TensorFlow Developer Certificate', issuer: 'Google', url: 'https://www.tensorflow.org/certificate', completedDate: '2023-05-20' },

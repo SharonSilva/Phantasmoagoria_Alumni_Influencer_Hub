@@ -46,13 +46,13 @@ function getTomorrowSlot(req, res) {
   });
 }
 
-// placeBid 
+// placeBid - four bods before any bid is sotred 
 function placeBid(req, res) {
   if (!handleValidation(req, res)) return;
   if (req.user.role !== 'alumni') {
     return res.status(403).json({ success: false, message: 'Only alumni can place bids' });
   }
-  if (!Bid.isBiddingOpen()) {
+  if (!Bid.isBiddingOpen()) {   // new Date().getUTCHours() < BID_CLOSE_HOUR
     return res.status(400).json({ success: false, message: `Bidding closes at ${process.env.BID_CLOSE_HOUR_UTC || 18}:00 UTC. It reopens at 00:00 UTC.` });
   }
   if (Bid.findTodayBidByUser(req.user.id)) {
@@ -65,13 +65,14 @@ function placeBid(req, res) {
     return res.status(400).json({ success: false, message: `Monthly limit reached (${wins}/${max}). Attend a university event to unlock a 4th slot.` });
   }
 
+  //Wallet check 
   const profile = Profile.findByUserId(req.user.id);
   const amount  = parseFloat(req.body.amount);
   if (!profile || profile.walletBalance < amount) {
     return res.status(400).json({ success: false, message: `Insufficient wallet balance. Available: £${profile?.walletBalance ?? 0}` });
   }
 
-  const newBid = Bid.place(req.user.id, amount);
+  const newBid = Bid.place(req.user.id, amount);  //only reaches here if all pass 
   const winning = Bid.isCurrentlyWinning(req.user.id);
 
   res.status(201).json({
@@ -203,10 +204,13 @@ async function resolveAuction(req, res) {
   // Email notifications which are non-blocking 
   const winUser = User.findById(result.winner.userId);
   if (winUser) sendWinnerNotification(winUser.email, winUser.name, result.winner.displayDate).catch(() => {});
+  //.catch(() => {}). makes emails non-blocking 
+  //if SMTP fails the auction result is not rolled back 
   if (result.loserIds) {
     result.loserIds.forEach(uid => {
       const u = User.findById(uid);
       if (u) sendLostBidNotification(u.email, u.name, result.winner.displayDate).catch(() => {});
+      //"Your bid amount has not been charged.Better luck next time "
     });
   }
 

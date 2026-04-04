@@ -27,13 +27,17 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
+      defaultSrc: ["'self'"],                     //blocks all external scripts - xss
       scriptSrc:  ["'self'", "'unsafe-inline'"],
       styleSrc:   ["'self'", "'unsafe-inline'", 'https:'],
       imgSrc:     ["'self'", 'data:', 'https:'],
     },
   },
 }));
+//Helmet auto matically adds :
+//X-Frame-Options : SAMEORIGIN to preventing clickjacking 
+//X-Content-Type-Options : nosniff to prevent mime type sniffing 
+//Strict tansport security by focring HTTP in production
 
 // 2.CORS
 const corsOrigin = process.env.CORS_ORIGIN || '*';
@@ -54,17 +58,17 @@ app.use('/api/auth/login',           rateLimit({ windowMs: 15 * 60 * 1000, max: 
 app.use('/api/auth/register',        rateLimit({ windowMs: 60 * 60 * 1000, max: 5,  message: { success: false, message: 'Too many registration attempts.' } }));
 app.use('/api/auth/forgot-password', rateLimit({ windowMs: 60 * 60 * 1000, max: 5,  message: { success: false, message: 'Too many reset requests.' } }));
 
-// ── 4. Body Parsing ───────────────────────────────────────────────────────────
+// Body Parsing 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// ── 5. Static File Serving ────────────────────────────────────────────────────
+// Static File Serving 
 // Serve uploaded profile photos at /uploads/filename
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || './uploads')));
 // Serve the frontend web app from /public (index.html, app.js, style.css)
 app.use(express.static(path.join(__dirname, '../public')));
 
-// ── 6. Swagger UI ─────────────────────────────────────────────────────────────
+// Swagger UI 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle:  'Alumni Influencers API Docs',
   customCss:        '.swagger-ui .topbar { background-color: #1a1a2e; }',
@@ -72,7 +76,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 
-// ── 7. Request Logger ─────────────────────────────────────────────────────────
+//  Request Logger 
 if (process.env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
@@ -80,7 +84,7 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-// ── 8. API Routes ─────────────────────────────────────────────────────────────
+// API Routes
 app.use('/api/auth',     authRouter);
 app.use('/api/profile',  profileRouter);
 app.use('/api/bids',     bidsRouter);
@@ -91,7 +95,7 @@ app.use('/api/wallet',   walletRouter);
 app.use('/api/keys',     apiKeysRouter);
 app.use('/api/public',   publicRouter);
 
-// ── 9. Password reset redirect ───────────────────────────────────────────────
+// Password reset redirect 
 // The reset email sends /api/auth/reset-password?token=... 
 // We intercept GET requests to that path and serve the frontend instead
 // The frontend reads the ?token= from the URL and shows the reset form
@@ -99,25 +103,25 @@ app.get('/api/auth/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// ── 10. Catch-all: serve frontend for any non-API route ──────────────────────
+// Catch-all: serve frontend for any non-API route 
 app.get('/{*path}', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// ── 10. 404 for unknown API routes ───────────────────────────────────────────
+// 404 for unknown API routes
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found` });
 });
 
-// ── 11. Global Error Handler ──────────────────────────────────────────────────
+// Global Error Handler
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err.message);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-// ── 12. Automated Midnight Winner Selection ───────────────────────────────────
+//  Automated Midnight Winner Selection 
 const WINNER_HOUR = process.env.WINNER_SELECT_HOUR_UTC || '0';
 if (process.env.NODE_ENV !== 'test') {
   cron.schedule(`0 ${WINNER_HOUR} * * *`, async () => {
@@ -127,11 +131,13 @@ if (process.env.NODE_ENV !== 'test') {
       const User = require('./models/User');
       const { db, dateStr } = require('./db');
       const { sendWinnerNotification, sendLostBidNotification } = require('./utils/email');
+      //Idempotency guard : skip if wiinner already selected today
       const displayDate = dateStr(1);
       if (db.winners.find(w => w.displayDate === displayDate)) {
         return console.log('[CRON] Winner already selected, skipping.');
       }
       const result = Bid.resolveAuction();
+      //send winner + loser notification
       if (!result.winner) return console.log('[CRON] No winner selected:', result);
       const winUser = User.findById(result.winner.userId);
       if (winUser) sendWinnerNotification(winUser.email, winUser.name, result.winner.displayDate).catch(() => {});
@@ -147,7 +153,7 @@ if (process.env.NODE_ENV !== 'test') {
   console.log(` Cron job: winner selection at ${WINNER_HOUR}:00 UTC daily`);
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// Boot
 async function start() {
   await seed();
   if (process.env.NODE_ENV !== 'test') {

@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { db, id } = require('../db');
-const SALT_ROUNDS = 12;
+const SALT_ROUNDS = 12;               //module constant - 12 means 2^12 ehich means 4096 iterations
 
 class User {
   static findById(userId) {
@@ -9,8 +9,9 @@ class User {
   static findByEmail(email) {
     return db.users.find(u => u.email === email) || null;
   }
+  //Registration
   static async create({ email, password, name, role = 'alumni' }) {
-    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    const hashed = await bcrypt.hash(password, SALT_ROUNDS);  //raw password newver stored, it's hashed immediately 
     const now = new Date().toISOString();
     const newUser = { id: id(),
                      email,
@@ -50,6 +51,7 @@ class User {
     const user = User.findById(userId);
     if (user) { user.password = await bcrypt.hash(newPassword, SALT_ROUNDS); user.updatedAt = new Date().toISOString(); }
   }
-  static toPublic(user) { const { password, ...safe } = user; return safe; }
+  //in every response, password is structurally removed 
+  static toPublic(user) { const { password, ...safe } = user; return safe; } //destructing removes password field and returned object has no password propoerty
 }
 module.exports = User;

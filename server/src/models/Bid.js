@@ -29,6 +29,7 @@ class Bid {
   }
 
    // Count how many times a user has won (appeared) this calendar month.
+   //count wins in curent calendar month using YYYY-MM prefic matching 
   static monthlyWinCount(userId) {
     const ym = new Date().toISOString().slice(0, 7);
     return db.winners.filter(w => w.userId === userId && w.displayDate.startsWith(ym)).length;
@@ -36,19 +37,19 @@ class Bid {
 
 
     // Has the user attended a bonus-granting event this month?
-
+    //event must have unlocksExptraBid
   static hasEventBonusThisMonth(userId) {
     const ym = new Date().toISOString().slice(0, 7);
     return db.eventAttendees.some(ea => {
       if (ea.userId !== userId) return false;
       const evt = db.events.find(e => e.id === ea.eventId && e.unlocksExtraBid);
-      return evt && evt.date.startsWith(ym);
+      return evt && evt.date.startsWith(ym); //events must be this calendarmonth
     });
   }
 
 
     // Maximum appearances allowed this calendar month.
-
+    // Combine: standard cap 3 + 1 if event bonus earned
   static maxMonthlyAppearances(userId) {
     return 3 + (Bid.hasEventBonusThisMonth(userId) ? 1 : 0);
   }
