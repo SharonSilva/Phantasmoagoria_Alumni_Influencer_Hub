@@ -12,13 +12,12 @@ class Profile {
   }
 
 
-    // Update allowed fields on a profile.
-
+  // Mass assignment protection
   static update(userId, updates) {
     const profile = Profile.findByUserId(userId);
     if (!profile) return null;
     const allowed = ['bio', 'linkedInUrl', 'currentRole', 'currentEmployer', 'location', 'graduationYear', 'photoUrl'];
-    allowed.forEach(f => { if (updates[f] !== undefined) profile[f] = updates[f]; });
+    allowed.forEach(f => { if (updates[f] !== undefined) profile[f] = updates[f]; }); //{walletBalance: 99999, role: "admin" } silently ignored
     Profile.recalculateCompletion(profile);
     return profile;
   }

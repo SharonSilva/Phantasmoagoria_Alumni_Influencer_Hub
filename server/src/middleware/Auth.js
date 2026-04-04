@@ -48,6 +48,7 @@ function authenticateKey(requiredScopes = []) {
 
     // Scope check
     if (requiredScopes.length > 0) {
+      // All required scopes must be present in key.scopes array
       const hasAll = requiredScopes.every(s => apiKey.scopes.includes(s));
       if (!hasAll) {
         return res.status(403).json({
@@ -58,6 +59,7 @@ function authenticateKey(requiredScopes = []) {
     }
 
     // Log usage
+    // Log every request for audit trail
     const { id: genId } = require('../db');
     apiKey.lastUsedAt = new Date().toISOString();
     db.apiUsageLogs.push({

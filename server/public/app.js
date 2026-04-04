@@ -1,12 +1,12 @@
 'use strict';
 
-// ── State ────────────────────────────────────────────────
+// State 
 var token = localStorage.getItem('token') || null;
 var currentUser = null;
 var currentBidId = null;
 var resetToken = null;
 
-// ── Helpers ──────────────────────────────────────────────
+// Helpers 
 function id(elId) { return document.getElementById(elId); }
 
 function toast(msg, type) {
@@ -44,7 +44,7 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// ── Routing ──────────────────────────────────────────────
+// Routing
 function showPage(name) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   var el = id('page-' + name);
@@ -67,7 +67,7 @@ function route() {
 
 window.addEventListener('hashchange', route);
 
-// ── Auth ─────────────────────────────────────────────────
+// Auth
 id('btn-login').addEventListener('click', function () {
   api('/api/auth/login', {
     method: 'POST',
@@ -128,7 +128,7 @@ document.querySelectorAll('.tab-btn').forEach(function (b) {
   b.addEventListener('click', function () { switchTab(b.dataset.tab); });
 });
 
-// ── Dashboard ─────────────────────────────────────────────
+// Dashboard 
 function loadDashboard() {
   if (!currentUser) {
     api('/api/auth/me').then(function (r) {
@@ -190,7 +190,7 @@ function finishDashboard() {
   }).catch(function () {});
 }
 
-// ── Profile ───────────────────────────────────────────────
+// Profile 
 function loadProfile() {
   api('/api/profile').then(function (r) {
     var p = r.data;
@@ -329,7 +329,7 @@ window.deleteSubResource = function (resource, itemId) {
     .catch(function (e) { toast(e.message, 'error'); });
 };
 
-// ── Sub-resource Add Buttons ──────────────────────────────
+// Sub-resource Add Buttons 
 id('btn-add-degree').addEventListener('click', function () {
   addSubResource('degrees', {
     title:         id('deg-title').value,
@@ -376,7 +376,7 @@ id('btn-add-employment').addEventListener('click', function () {
   });
 });
 
-// ── Bidding ───────────────────────────────────────────────
+// Bidding
 function loadBidding() {
   api('/api/bids/monthly').then(function (r) {
     var d = r.data;
@@ -395,14 +395,14 @@ function loadBidding() {
     }
     id('monthly-text').textContent = 'Used ' + d.winsThisMonth + ' of ' + d.maxAllowed + ' slots this month. ' +
       d.slotsRemaining + ' remaining.' +
-      (d.eventBonusActive ? ' 🎉 Event bonus active!' : '');
+      (d.eventBonusActive ? '  Event bonus active!' : '');
   }).catch(function () {});
 
   api('/api/bids/tomorrow').then(function (r) {
     var d = r.data;
     var el = id('tomorrow-slot');
     el.innerHTML = '<p><strong>Date:</strong> ' + escapeHtml(d.slotDate) + '</p>' +
-      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? '✅ Open' : '❌ Closed') + '</p>' +
+      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? 'Open' : ' Closed') + '</p>' +
       '<p style="font-size:0.82rem;color:var(--text-muted)">Closes at ' + escapeHtml(d.biddingClosesAt) + '</p>';
   }).catch(function () {});
 
@@ -424,7 +424,7 @@ function loadBidding() {
     } else {
       dispEl.innerHTML = d.isCurrentlyWinning
         ? '<p class="bid-winning">🏆 You are currently the highest bidder!</p>'
-        : '<p class="bid-losing">⚠️ You are not currently the highest bidder. Consider increasing your bid.</p>';
+        : '<p class="bid-losing"> You are not currently the highest bidder. Consider increasing your bid.</p>';
       formEl.style.display = 'none';
       updateEl.style.display = 'block';
     }
@@ -450,7 +450,7 @@ id('btn-place-bid').addEventListener('click', function () {
   if (!amount || amount < 1) { toast('Enter a valid amount (min £1)', 'error'); return; }
   api('/api/bids', { method: 'POST', body: { amount: amount } })
     .then(function (r) {
-      var msg = r.data.feedback.isCurrentlyWinning ? '🏆 Bid placed — you are currently winning!' : '⚠️ Bid placed — not currently winning.';
+      var msg = r.data.feedback.isCurrentlyWinning ? '🏆 Bid placed — you are currently winning!' : 'Bid placed — not currently winning.';
       toast(msg, r.data.feedback.isCurrentlyWinning ? 'success' : '');
       loadBidding();
     }).catch(function (e) { toast(e.message, 'error'); });
@@ -463,7 +463,7 @@ id('btn-update-bid').addEventListener('click', function () {
     if (!bidId) { toast('No active bid found', 'error'); return; }
     api('/api/bids/' + bidId, { method: 'PATCH', body: { amount: amount } })
       .then(function (r) {
-        toast(r.data.feedback.isCurrentlyWinning ? '🏆 Bid increased — now winning!' : '⚠️ Bid increased — still not winning.', '');
+        toast(r.data.feedback.isCurrentlyWinning ? '🏆 Bid increased — now winning!' : ' Bid increased — still not winning.', '');
         loadBidding();
       }).catch(function (e) { toast(e.message, 'error'); });
   });
@@ -493,7 +493,7 @@ function loadBidHistory() {
   }).catch(function () {});
 }
 
-// ── Featured ──────────────────────────────────────────────
+// Featured
 function loadFeatured() {
   var el = id('featured-full');
   api('/api/winners/today').then(function (r) {
@@ -545,7 +545,7 @@ function loadFeatured() {
   });
 }
 
-// ── Boot ──────────────────────────────────────────────────
+// Boot
 (function init() {
   // If URL has ?token= it's a password reset link
   var urlParams = new URLSearchParams(window.location.search);
@@ -571,7 +571,7 @@ function loadFeatured() {
   route();
 })();
 
-// ── Reset Password Page ───────────────────────────────────
+// Reset Password Page 
 id('btn-reset-password').addEventListener('click', function () {
   var pw  = id('reset-password').value;
   var cpw = id('reset-confirm').value;

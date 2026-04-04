@@ -402,7 +402,7 @@ function loadBidding() {
     var d = r.data;
     var el = id('tomorrow-slot');
     el.innerHTML = '<p><strong>Date:</strong> ' + escapeHtml(d.slotDate) + '</p>' +
-      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? '✅ Open' : '❌ Closed') + '</p>' +
+      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? 'Open' : ' Closed') + '</p>' +
       '<p style="font-size:0.82rem;color:var(--text-muted)">Closes at ' + escapeHtml(d.biddingClosesAt) + '</p>';
   }).catch(function () {});
 
@@ -424,7 +424,7 @@ function loadBidding() {
     } else {
       dispEl.innerHTML = d.isCurrentlyWinning
         ? '<p class="bid-winning">🏆 You are currently the highest bidder!</p>'
-        : '<p class="bid-losing">⚠️ You are not currently the highest bidder. Consider increasing your bid.</p>';
+        : '<p class="bid-losing"> You are not currently the highest bidder. Consider increasing your bid.</p>';
       formEl.style.display = 'none';
       updateEl.style.display = 'block';
     }
@@ -450,7 +450,7 @@ id('btn-place-bid').addEventListener('click', function () {
   if (!amount || amount < 1) { toast('Enter a valid amount (min £1)', 'error'); return; }
   api('/api/bids', { method: 'POST', body: { amount: amount } })
     .then(function (r) {
-      var msg = r.data.feedback.isCurrentlyWinning ? '🏆 Bid placed — you are currently winning!' : '⚠️ Bid placed — not currently winning.';
+      var msg = r.data.feedback.isCurrentlyWinning ? '🏆 Bid placed — you are currently winning!' : 'Bid placed — not currently winning.';
       toast(msg, r.data.feedback.isCurrentlyWinning ? 'success' : '');
       loadBidding();
     }).catch(function (e) { toast(e.message, 'error'); });
@@ -463,7 +463,7 @@ id('btn-update-bid').addEventListener('click', function () {
     if (!bidId) { toast('No active bid found', 'error'); return; }
     api('/api/bids/' + bidId, { method: 'PATCH', body: { amount: amount } })
       .then(function (r) {
-        toast(r.data.feedback.isCurrentlyWinning ? '🏆 Bid increased — now winning!' : '⚠️ Bid increased — still not winning.', '');
+        toast(r.data.feedback.isCurrentlyWinning ? '🏆 Bid increased — now winning!' : ' Bid increased — still not winning.', '');
         loadBidding();
       }).catch(function (e) { toast(e.message, 'error'); });
   });

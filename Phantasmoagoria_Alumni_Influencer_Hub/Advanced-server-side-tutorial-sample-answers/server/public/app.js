@@ -402,7 +402,7 @@ function loadBidding() {
     var d = r.data;
     var el = id('tomorrow-slot');
     el.innerHTML = '<p><strong>Date:</strong> ' + escapeHtml(d.slotDate) + '</p>' +
-      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? '✅ Open' : '❌ Closed') + '</p>' +
+      '<p><strong>Bidding:</strong> ' + (d.biddingOpen ? 'Open' : 'Closed') + '</p>' +
       '<p style="font-size:0.82rem;color:var(--text-muted)">Closes at ' + escapeHtml(d.biddingClosesAt) + '</p>';
   }).catch(function () {});
 
@@ -545,7 +545,7 @@ function loadFeatured() {
   });
 }
 
-// ── Boot ──────────────────────────────────────────────────
+// Boot 
 (function init() {
   // If URL has ?token= it's a password reset link
   var urlParams = new URLSearchParams(window.location.search);
@@ -571,7 +571,7 @@ function loadFeatured() {
   route();
 })();
 
-// ── Reset Password Page ───────────────────────────────────
+// Reset Password Page
 id('btn-reset-password').addEventListener('click', function () {
   var pw  = id('reset-password').value;
   var cpw = id('reset-confirm').value;

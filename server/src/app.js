@@ -60,6 +60,7 @@ app.use('/api/auth/forgot-password', rateLimit({ windowMs: 60 * 60 * 1000, max: 
 
 // Body Parsing 
 app.use(express.json({ limit: '10kb' }));
+// Requests >10kb return HTTP 413 Payload too large automatically 
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Static File Serving 
