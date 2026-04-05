@@ -1,4 +1,4 @@
-/* ── Variables ──────────────────────────────────────────── */
+/* Variables */
 :root {
   --bg:         #0a0a0f;
   --bg2:        #12121a;
@@ -14,7 +14,7 @@
   --shadow:     0 4px 24px rgba(0,0,0,0.4);
 }
 
-/* ── Reset ──────────────────────────────────────────────── */
+/* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body {
@@ -26,7 +26,7 @@ body {
   min-height: 100vh;
 }
 
-/* ── Nav ────────────────────────────────────────────────── */
+/*  Nav */
 #navbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; gap: 2rem;
@@ -45,7 +45,7 @@ body {
 .nav-right { display: flex; align-items: center; gap: 1rem; margin-left: auto; }
 .nav-user { font-size: 0.85rem; color: var(--text-muted); }
 
-/* ── Buttons ────────────────────────────────────────────── */
+/* Buttons */
 button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem; transition: all 0.2s; }
 .btn-primary {
   background: var(--gold);
@@ -85,7 +85,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
   border-radius: 6px;
 }
 
-/* ── Pages ──────────────────────────────────────────────── */
+/* Pages */
 .page { display: none; }
 .page.active { display: block; }
 .page-content {
@@ -101,7 +101,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 }
 .page-header p { color: var(--text-muted); margin-top: 0.25rem; }
 
-/* ── Cards ──────────────────────────────────────────────── */
+/* Cards */
 .card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -118,7 +118,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
   border-bottom: 1px solid var(--border);
 }
 
-/* ── Forms ──────────────────────────────────────────────── */
+/* Forms  */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .field input, .field textarea, .field select {
@@ -142,7 +142,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
 @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
 
-/* ── Auth Page ──────────────────────────────────────────── */
+/* Auth Page */
 #page-auth { min-height: 100vh; }
 .auth-split { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
 @media (max-width: 768px) { .auth-split { grid-template-columns: 1fr; } }
@@ -234,7 +234,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 .auth-hint { font-size: 0.82rem; color: var(--text-muted); text-align: center; }
 .auth-hint a { color: var(--gold); text-decoration: none; }
 
-/* ── Dashboard ──────────────────────────────────────────── */
+/* Dashboard  */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -253,7 +253,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 .dashboard-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 @media (max-width: 768px) { .dashboard-two-col { grid-template-columns: 1fr; } }
 
-/* ── Profile Photo ──────────────────────────────────────── */
+/*Profile Photo */
 .profile-photo-row { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; }
 .photo-wrap { width: 80px; height: 80px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
 .photo-wrap img { width: 100%; height: 100%; object-fit: cover; }
@@ -265,12 +265,12 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
   font-size: 0.7rem; color: var(--text-muted);
 }
 
-/* ── Completion Bar ─────────────────────────────────────── */
+/*Completion Bar */
 .completion-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; }
 .completion-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
 .completion-fill { height: 100%; background: var(--gold); border-radius: 3px; transition: width 0.5s ease; }
 
-/* ── Sub-resource Tabs ──────────────────────────────────── */
+/* Sub-resource Tabs*/
 .sub-resource-tabs {
   display: flex; gap: 0.5rem;
   flex-wrap: wrap;
@@ -294,7 +294,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 }
 .add-form h4 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; }
 
-/* ── Item List ──────────────────────────────────────────── */
+/* Item List */
 .item-list { display: flex; flex-direction: column; gap: 0.75rem; }
 .item-row {
   display: flex;
@@ -315,7 +315,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 .btn-del { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; }
 .btn-del:hover { background: rgba(224,85,85,0.1); }
 
-/* ── Bidding ────────────────────────────────────────────── */
+/* Bidding*/
 .bid-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
 @media (max-width: 640px) { .bid-grid { grid-template-columns: 1fr; } }
 .monthly-display { text-align: center; padding: 1rem 0; }
@@ -353,7 +353,7 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 .status-active { background: rgba(201,168,76,0.15); color: var(--gold); }
 .status-cancelled { background: rgba(224,85,85,0.1); color: var(--danger); }
 
-/* ── Featured ───────────────────────────────────────────── */
+/* Featured */
 .featured-card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -397,14 +397,14 @@ button { cursor: pointer; border: none; font-family: inherit; font-size: 0.9rem;
 }
 .cred-chip a { color: var(--gold); text-decoration: none; }
 
-/* ── Misc ───────────────────────────────────────────────── */
+/* Misc  */
 .empty-state { color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem 0; }
 .winner-row { display: flex; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
 .winner-row:last-child { border-bottom: none; }
 .winner-name { color: var(--text); }
 .winner-date { color: var(--text-muted); }
 
-/* ── Toast ──────────────────────────────────────────────── */
+/* Toast  */
 .toast {
   position: fixed; bottom: 2rem; right: 2rem;
   background: var(--bg2);
