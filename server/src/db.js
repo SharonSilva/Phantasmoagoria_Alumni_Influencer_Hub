@@ -191,6 +191,20 @@ async function seed() {
     { id: id(), apiKeyId: 'k2', endpoint: '/api/public/alumni',   method: 'GET', timestamp: new Date().toISOString(), statusCode: 200 },
   );
 
+  const topBid = db.bids
+    .filter(b => b.bidDate === today() && b.status === 'active')
+    .sort((a, b) => b.amount - a.amount)[0];
+
+  if (topBid) {
+    db.winners.push({
+      id: 'w5',
+      userId: topBid.userId,
+      displayDate: today(),
+      bidAmount: topBid.amount,
+      createdAt: new Date().toISOString()
+    });
+  }
+
   console.log('  Database seeded');
 }
 
