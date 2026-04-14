@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alumni Analytics Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+  
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  
+  <!-- HTML2PDF for exporting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="navbar-brand">
+        <h1>🎓 Alumni Influencer Hub</h1>
+        <p>Analytics & Management Dashboard</p>
+      </div>
+      <nav class="navbar-nav">
+        <a href="#dashboard" class="nav-link active">📊 Dashboard</a>
+        <a href="#alumni" class="nav-link">👥 Alumni</a>
+        <a href="#charts" class="nav-link">📈 Charts</a>
+        <a href="#api-keys" class="nav-link">🔑 API Keys</a>
+        <a href="#usage" class="nav-link">📊 Usage</a>
+        <a href="#" class="nav-link logout">🚪 Logout</a>
+      </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container" id="content">
+      <div class="loading">⏳ Loading...</div>
+    </main>
+
+    <!-- Messages/Alerts -->
+    <div id="message-box" class="alert hidden"></div>
+  </div>
+
+  <script src="/app-enhanced.js"></script>
+</body>
+</html>
