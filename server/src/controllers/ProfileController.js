@@ -94,10 +94,16 @@ function subResourceController(collectionKey, label) {
   };
 }
 
+const certController = subResourceController('certifications', 'Certification');
+const addCertification    = certController.create;
+const deleteCertification = certController.remove;
+
 module.exports = {
   getProfile,
   updateProfile,
   uploadPhoto,
   getCompletion,
   subResourceController,
+  addCertification,
+  deleteCertification,
 };

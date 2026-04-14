@@ -62,8 +62,17 @@ module.exports = function(parent, options) {
           method = 'get';
           url = '/';
           break;
+        case 'destroy':
+        case 'remove':
+        case 'delete':
+          method = 'delete';
+          url = '/' + controllerName + '/:' + controllerName + '_id';
+          break;
         default:
-          throw new Error('Unrecognized route: ' + controllerName + '.' + key);
+          // Custom actions: GET /<controller>/<action>
+          method = 'get';
+          url = '/' + controllerName + '/' + key;
+          break;
       }
 
       handler = obj[key];

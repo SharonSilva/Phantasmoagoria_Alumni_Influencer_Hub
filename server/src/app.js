@@ -112,9 +112,7 @@ app.use('/api/public', publicRouter);
 
 // CSRF Token endpoint (public, no auth needed)
 app.get('/api/csrf-token', (req, res) => {
-  const { generateCsrfToken } = require('./middleware/authMiddleware');
-  const token = generateCsrfToken(req.user?.id || 'guest');
-  res.success({ csrfToken: token });
+  res.json({ success: true, data: { csrfToken: 'csrf-not-required' } });
 });
 
 // ============= PROTECTED ROUTES (Require Authentication) =============
@@ -147,9 +145,8 @@ app.get('/api/auth/reset-password', (req, res) => {
 
 // ============= CATCH-ALL: Serve Frontend for Non-API Routes =============
 
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+app.get('/api/csrf-token', (req, res) => {
+  res.json({ success: true, data: { csrfToken: 'csrf-not-required' } });
 });
 
 // ============= 404 HANDLER =============

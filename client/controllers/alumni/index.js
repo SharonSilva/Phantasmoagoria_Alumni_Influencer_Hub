@@ -13,23 +13,12 @@ module.exports = {
   name: 'alumni',
 
   /**
-   * GET /alumnis → Alumni list page
+   * GET /alumnis → Fetch and return filtered alumni data
    */
-  list: function(req, res) {
-    res.json({
-      page: 'alumni',
-      title: 'Alumni Directory',
-      apiEndpoint: '/api/alumni/data'
-    });
-  },
-
-  /**
-   * GET /api/alumni/data → Fetch filtered alumni
-   */
-  data: async function(req, res) {
+  list: async function(req, res) {
     try {
       const token = req.session.authToken;
-      
+
       // Get filter parameters from query
       const { programme, year, industry, search } = req.query;
 
@@ -62,9 +51,9 @@ module.exports = {
         filters: { programme, year, industry, search }
       });
     } catch (error) {
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
+      res.status(500).json({
+        success: false,
+        error: error.message
       });
     }
   },
@@ -86,9 +75,9 @@ module.exports = {
         data: response.data
       });
     } catch (error) {
-      res.status(404).json({ 
-        success: false, 
-        error: 'Alumni not found' 
+      res.status(404).json({
+        success: false,
+        error: 'Alumni not found'
       });
     }
   }

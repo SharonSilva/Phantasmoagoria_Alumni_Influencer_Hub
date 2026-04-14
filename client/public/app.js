@@ -70,7 +70,7 @@
           </div>
           <div class="metric-card">
             <h3>Sponsorships</h3>
-            <p class="metric-value">${db.sponsorships?.length || 0}</p>
+            <p class="metric-value">${data.sponsorships?.length || 0}</p>
           </div>
         </div>
 
@@ -95,8 +95,7 @@
                 <th>Bid Amount (£)</th>
               </tr>
             </thead>
-            <tbody id="winners-table">
-            </tbody>
+            <tbody id="winners-table"></tbody>
           </table>
         </div>
 
@@ -111,8 +110,7 @@
                 <th>Avg Bid (£)</th>
               </tr>
             </thead>
-            <tbody id="bidders-table">
-            </tbody>
+            <tbody id="bidders-table"></tbody>
           </table>
         </div>
 
@@ -129,7 +127,6 @@
   }
 
   function renderCharts(breakdown) {
-    // Programme Chart
     const programmeCtx = document.getElementById('chart-programme');
     if (programmeCtx && typeof Chart !== 'undefined') {
       new Chart(programmeCtx, {
@@ -152,7 +149,6 @@
       });
     }
 
-    // Industry Chart
     const industryCtx = document.getElementById('chart-industry');
     if (industryCtx && typeof Chart !== 'undefined') {
       new Chart(industryCtx, {
@@ -269,7 +265,6 @@
   function renderPagination(pagination) {
     const controls = document.getElementById('pagination-controls');
     const info = document.getElementById('pagination-text');
-    
     if (!controls || !pagination) return;
 
     info.textContent = `Showing ${(pagination.page - 1) * pagination.limit + 1}-${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total} alumni`;
@@ -282,7 +277,6 @@
     if (pagination.hasNextPage) {
       html += `<button onclick="goToAlumniPage(${pagination.page + 1})" class="btn btn-secondary">Next →</button>`;
     }
-
     controls.innerHTML = html;
   }
 
@@ -298,37 +292,30 @@
             <h2>Skills Gap Analysis</h2>
             <canvas id="skills-gap-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Career Trends</h2>
             <canvas id="career-trends-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Industry Distribution</h2>
             <canvas id="industry-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Top Certifications</h2>
             <canvas id="certs-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Programme Distribution</h2>
             <canvas id="programme-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Graduation Years</h2>
             <canvas id="years-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Bidding Trends</h2>
             <canvas id="bidding-chart"></canvas>
           </div>
-
           <div class="chart-item">
             <h2>Sponsorships</h2>
             <canvas id="sponsorship-chart"></canvas>
@@ -341,8 +328,6 @@
       </div>
     `;
     content.innerHTML = html;
-
-    // Load all charts
     loadAllCharts();
   }
 
@@ -353,14 +338,14 @@
     }
 
     const chartEndpoints = [
-      { endpoint: '/api/charts/skills-gap', elementId: 'skills-gap-chart' },
-      { endpoint: '/api/charts/career-trends', elementId: 'career-trends-chart' },
-      { endpoint: '/api/charts/industry-distribution', elementId: 'industry-chart' },
-      { endpoint: '/api/charts/certifications', elementId: 'certs-chart' },
-      { endpoint: '/api/charts/programme-distribution', elementId: 'programme-chart' },
-      { endpoint: '/api/charts/graduation-years', elementId: 'years-chart' },
-      { endpoint: '/api/charts/bidding-trends', elementId: 'bidding-chart' },
-      { endpoint: '/api/charts/sponsorships', elementId: 'sponsorship-chart' }
+      { endpoint: '/charts/skillsGap',             elementId: 'skills-gap-chart' },
+      { endpoint: '/charts/careerTrends',           elementId: 'career-trends-chart' },
+      { endpoint: '/charts/industryDistribution',   elementId: 'industry-chart' },
+      { endpoint: '/charts/certifications',         elementId: 'certs-chart' },
+      { endpoint: '/charts/programmeDistribution',  elementId: 'programme-chart' },
+      { endpoint: '/charts/graduationYears',        elementId: 'years-chart' },
+      { endpoint: '/charts/biddingTrends',          elementId: 'bidding-chart' },
+      { endpoint: '/charts/sponsorships',           elementId: 'sponsorship-chart' }
     ];
 
     chartEndpoints.forEach(({ endpoint, elementId }) => {
@@ -377,9 +362,7 @@
               options: {
                 responsive: true,
                 maintainAspectRatio: true,
-                plugins: {
-                  legend: { display: true }
-                }
+                plugins: { legend: { display: true } }
               }
             });
           }
@@ -407,8 +390,7 @@
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="api-keys-tbody">
-          </tbody>
+          <tbody id="api-keys-tbody"></tbody>
         </table>
 
         <div id="usage-stats">
@@ -418,7 +400,6 @@
       </div>
     `;
     content.innerHTML = html;
-
     renderApiKeysTable(data.data || []);
   }
 
@@ -495,7 +476,7 @@
     showMessage('');
 
     if (parts[0] === 'dashboard') {
-      api('/api/dashboard')
+      api('/dashboard/api')
         .then(renderDashboard)
         .catch(err => {
           showMessage(err.message, 'error');
@@ -506,7 +487,7 @@
 
     if (parts[0] === 'alumni') {
       const page = parts[1] || 1;
-      api(`/api/alumni?page=${page}&limit=20`)
+      api(`/alumnis?page=${page}&limit=20`)
         .then(renderAlumni)
         .catch(err => {
           showMessage(err.message, 'error');
@@ -521,7 +502,7 @@
     }
 
     if (parts[0] === 'api-keys') {
-      api('/api/keys')
+      api('/api-keyss')
         .then(renderApiKeys)
         .catch(err => {
           showMessage(err.message, 'error');
@@ -531,7 +512,7 @@
     }
 
     if (parts[0] === 'usage') {
-      api('/api/usage/stats')
+      api('/api-keys/usage')
         .then(renderUsageStats)
         .catch(err => {
           showMessage(err.message, 'error');
@@ -540,7 +521,6 @@
       return;
     }
 
-    // Default to dashboard
     location.hash = '#dashboard';
   }
 
@@ -550,7 +530,7 @@
     const programme = document.getElementById('programme-filter')?.value || '';
     const industry = document.getElementById('industry-filter')?.value || '';
     
-    let url = '/api/alumni?page=1&limit=20';
+    let url = '/alumnis?page=1&limit=20';
     if (search) url += `&search=${encodeURIComponent(search)}`;
     if (programme) url += `&programme=${encodeURIComponent(programme)}`;
     if (industry) url += `&industry=${encodeURIComponent(industry)}`;
@@ -579,7 +559,7 @@
   };
 
   window.viewKeyDetails = function(keyId) {
-    api(`/api/usage/key/${keyId}`)
+    api(`/api-keys/${keyId}`)
       .then(data => {
         let details = `
           Key: ${escapeHtml(data.keyName)}
@@ -603,8 +583,8 @@
     alert('Create key form (feature to be implemented)');
   };
 
-  // Event Listeners
   window.addEventListener('hashchange', route);
+
   const logoutBtn = document.querySelector('.logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', function(e) {
@@ -614,6 +594,5 @@
     });
   }
 
-  // Initial route
   route();
 })();
