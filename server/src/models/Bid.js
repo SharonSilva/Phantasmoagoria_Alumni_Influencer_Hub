@@ -1,166 +1,233 @@
-const { db, id, today, dateStr } = require('../db');
-
-const BID_CLOSE_HOUR = () => parseInt(process.env.BID_CLOSE_HOUR_UTC || '18');
+const { db, today, dateStr } = require('../db');
 
 class Bid {
-  // Query methods 
-
-  static findById(bidId) {
-    return db.bids.find(b => b.id === bidId) || null;
-  }
-
-  static findTodayBidByUser(userId) {
-    return db.bids.find(b => b.userId === userId && b.bidDate === today() && b.status === 'active') || null;
-  }
-
-  static getActiveBidsForDate(date) {
-    return db.bids.filter(b => b.bidDate === date && b.status === 'active');
-  }
-
-  static getUserBidHistory(userId) {
-    return db.bids
-      .filter(b => b.userId === userId)
-      .sort((a, b) => b.bidDate.localeCompare(a.bidDate));
-  }
-
-  //Business rule checks 
-  static isBiddingOpen() {
-    return new Date().getUTCHours() < BID_CLOSE_HOUR();
-  }
-
-   // Count how many times a user has won (appeared) this calendar month.
-   //count wins in curent calendar month using YYYY-MM prefic matching 
-  static monthlyWinCount(userId) {
-    const ym = new Date().toISOString().slice(0, 7);
-    return db.winners.filter(w => w.userId === userId && w.displayDate.startsWith(ym)).length;
-  }
-
-
-    // Has the user attended a bonus-granting event this month?
-    //event must have unlocksExptraBid
-  static hasEventBonusThisMonth(userId) {
-    const ym = new Date().toISOString().slice(0, 7);
-    return db.eventAttendees.some(ea => {
-      if (ea.userId !== userId) return false;
-      const evt = db.events.find(e => e.id === ea.eventId && e.unlocksExtraBid);
-      return evt && evt.date.startsWith(ym); //events must be this calendarmonth
-    });
-  }
-
-
-    // Maximum appearances allowed this calendar month.
-    // Combine: standard cap 3 + 1 if event bonus earned
-  static maxMonthlyAppearances(userId) {
-    return 3 + (Bid.hasEventBonusThisMonth(userId) ? 1 : 0);
-  }
-
-
-    // Blind win/loss status: is this user currently the highest bidder today
-    // Amount is intentionally NOT exposed — only boolean result.
-
-  static isCurrentlyWinning(userId) {
-    const todayBids = Bid.getActiveBidsForDate(today());
-    const mine = todayBids.find(b => b.userId === userId);
-    if (!mine) return false;
-    const max = Math.max(...todayBids.map(b => b.amount));
-    return mine.amount >= max;
-  }
-
-  // Mutation methods 
-    // Place a new bid. Does NOT validate business rules — controller does that.
-
+  /**
+   * Place a new bid for today's "Alumni of the Day" auction
+   * @param {string} userId - User placing the bid
+   * @param {number} amount - Bid amount in GBP (blind from other users)
+   * @returns {object} New bid object
+   */
   static place(userId, amount) {
+    const { id } = require('../db');
     const newBid = {
-      id:          id(),
+      id: id(),
       userId,
-      bidDate:     today(),
-      amount:      parseFloat(amount),
-      status:      'active',
+      bidDate: today(),
+      amount,
+      status: 'active',
       submittedAt: new Date().toISOString(),
     };
     db.bids.push(newBid);
     return newBid;
   }
 
-
-    // Increase a bid amount.
-
+  /**
+   * Increase an existing bid to a higher amount
+   * Prevents bidding down; only increases allowed
+   * @param {string} bidId - Bid ID to increase
+   * @param {number} newAmount - New amount (must be > current)
+   * @returns {object} Updated bid
+   */
   static increase(bidId, newAmount) {
-    const bid = Bid.findById(bidId);
-    if (!bid) return null;
-    bid.amount    = parseFloat(newAmount);
-    bid.updatedAt = new Date().toISOString();
+    const bid = db.bids.find(b => b.id === bidId);
+    if (bid) bid.amount = newAmount;
     return bid;
   }
 
-
-  //  Cancel an active bid.
-
+  /**
+   * Cancel a bid during bidding window
+   * Called before winner selection (bidding closes at BID_CLOSE_HOUR_UTC)
+   * @param {string} bidId - Bid to cancel
+   */
   static cancel(bidId) {
-    const bid = Bid.findById(bidId);
-    if (!bid) return null;
-    bid.status      = 'cancelled';
-    bid.cancelledAt = new Date().toISOString();
-    return bid;
+    const bid = db.bids.find(b => b.id === bidId);
+    if (bid) bid.status = 'cancelled';
   }
 
+  /**
+   * Find user's bid for today (if any)
+   * Used to check if user already has a bid placed today
+   * @param {string} userId - User ID
+   * @returns {object|null} User's today bid or null
+   */
+  static findTodayBidByUser(userId) {
+    return db.bids.find(b => b.userId === userId && b.bidDate === today() && b.status === 'active');
+  }
 
-    // Resolve today's auction:
-  //  - Find highest eligible bidder (monthly cap check)
-    //  - Mark winner/losers
-    //  - Deduct from winner's wallet
-    //  - Store winner record
+  /**
+   * Find bid by ID
+   * @param {string} bidId - Bid ID
+   * @returns {object|null} Bid or null
+   */
+  static findById(bidId) {
+    return db.bids.find(b => b.id === bidId);
+  }
 
-  static resolveAuction() {
-    const todayStr    = today();
-    const displayDate = dateStr(1);
+  /**
+   * Check if bidding window is open
+   * Window closes at BID_CLOSE_HOUR_UTC (default 18:00 UTC)
+   * Reopens at 00:00 UTC next day
+   * @returns {boolean} true if can bid now
+   */
+  static isBiddingOpen() {
+    const now = new Date();
+    const hourUTC = now.getUTCHours();
+    const closeHour = parseInt(process.env.BID_CLOSE_HOUR_UTC || '18');
+    return hourUTC < closeHour; // Can bid if before close hour
+  }
 
-    const activeBids = Bid.getActiveBidsForDate(todayStr);
-    if (!activeBids.length) return { winner: null, resolved: 0 };
+  /**
+   * Check if a user is currently winning (has highest bid)
+   * Does NOT account for blind aspect (client-side displays "winning" status)
+   * @param {string} userId - User ID
+   * @returns {boolean} true if user has highest active bid
+   */
+  static isCurrentlyWinning(userId) {
+    const userBid = db.bids.find(b => b.userId === userId && b.bidDate === today() && b.status === 'active');
+    if (!userBid) return false;
 
-    // Sort by amount desc, then by earliest submission (tie-breaker)
-    activeBids.sort((a, b) => b.amount - a.amount || a.submittedAt.localeCompare(b.submittedAt));
+    // Find highest active bid for today
+    const highest = db.bids
+      .filter(b => b.bidDate === today() && b.status === 'active')
+      .sort((a, b) => b.amount - a.amount)[0];
 
+    return highest && highest.userId === userId;
+  }
+
+  /**
+   * Count how many times user has won in current calendar month
+   * Counts winners in current month, respects monthly limit
+   * @param {string} userId - User ID
+   * @returns {number} Win count this month
+   */
+  static monthlyWinCount(userId) {
+    const ym = new Date().toISOString().slice(0, 7); // "2026-04"
+    return db.winners.filter(
+      w => w.userId === userId && w.displayDate.startsWith(ym)
+    ).length;
+  }
+
+  /**
+   * Check if user has attended an event this month (unlocks bonus slot)
+   * @param {string} userId - User ID
+   * @returns {boolean} true if attended event with unlocksExtraBid flag
+   */
+  static hasEventBonusThisMonth(userId) {
     const ym = new Date().toISOString().slice(0, 7);
-
-    const winnerBid = activeBids.find(b => {
-      const wins = Bid.monthlyWinCount(b.userId);
-      return wins < Bid.maxMonthlyAppearances(b.userId);
+    
+    return db.eventAttendees.some(ea => {
+      if (ea.userId !== userId) return false;
+      
+      // Check if event is this month and unlocks bid
+      const evt = db.events.find(
+        e => e.id === ea.eventId && e.unlocksExtraBid && e.date.startsWith(ym)
+      );
+      return !!evt;
     });
+  }
 
-    if (!winnerBid) return { winner: null, resolved: activeBids.length };
+  /**
+   * Get max appearance slots for user this month
+   * Base: 3 slots. +1 if attended event this month
+   * @param {string} userId - User ID
+   * @returns {number} 3 or 4
+   */
+  static maxMonthlyAppearances(userId) {
+    const base = 3;
+    const bonus = Bid.hasEventBonusThisMonth(userId) ? 1 : 0;
+    return base + bonus;
+  }
 
-    // Resolve statuses
-    activeBids.forEach(b => {
-      b.status     = b.id === winnerBid.id ? 'won' : 'lost';
-      b.resolvedAt = new Date().toISOString();
-    });
+  /**
+   * Get user's complete bid history (all bids ever)
+   * @param {string} userId - User ID
+   * @returns {array} All bids by user, sorted by date desc
+   */
+  static getUserBidHistory(userId) {
+    return db.bids
+      .filter(b => b.userId === userId)
+      .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+  }
 
-    // Deduct wallet and update appearance count
-    const winProfile = db.profiles.find(p => p.userId === winnerBid.userId);
-    if (winProfile) {
-      winProfile.walletBalance   -= winnerBid.amount;
-      winProfile.isActiveToday    = true;
-      if (winProfile.appearanceCountMonth !== ym) {
-        winProfile.appearanceCount = 0;
-        winProfile.appearanceCountMonth = ym;
-      }
-      winProfile.appearanceCount += 1;
+  /**
+   * AUTOMATED AUCTION RESOLUTION
+   * Called daily at configured UTC hour (default 00:00)
+   * 
+   * Algorithm:
+   * 1. Get all active bids from yesterday (bidDate = yesterday)
+   * 2. Filter out users who hit monthly limit
+   * 3. Sort by: amount DESC, then submittedAt ASC (tiebreak)
+   * 4. Select top bidder as winner
+   * 5. Mark winner bid as 'won', losers as 'lost'
+   * 6. Create winner record for tomorrow's display
+   * 
+   * @returns {object} { winner, loserIds, resolved }
+   */
+  static resolveAuction() {
+    const yesterday = dateStr(-1);
+    
+    // Get all active bids from yesterday
+    let activeBids = db.bids.filter(b => 
+      b.bidDate === yesterday && b.status === 'active'
+    );
+
+    if (activeBids.length === 0) {
+      return { winner: null, loserIds: [], resolved: 0 };
     }
 
-    // Store winner record
-    const winnerRecord = {
-      id:          id(),
-      userId:      winnerBid.userId,
-      displayDate,
-      bidAmount:   winnerBid.amount,
-      createdAt:   new Date().toISOString(),
-    };
-    db.winners.push(winnerRecord);
+    // Sort by amount (highest first), then by submission time (earliest first for tiebreak)
+    activeBids.sort((a, b) => {
+      if (b.amount !== a.amount) return b.amount - a.amount;
+      return a.submittedAt.localeCompare(b.submittedAt);
+    });
+
+    // Find first winner who hasn't exceeded monthly limit
+    let winner = null;
+    for (const bid of activeBids) {
+      const wins = this.monthlyWinCount(bid.userId);
+      const max = this.maxMonthlyAppearances(bid.userId);
+      
+      if (wins < max) {
+        winner = bid;
+        break;
+      }
+    }
+
+    if (!winner) {
+      // No one qualified: all have hit monthly limit
+      activeBids.forEach(b => { b.status = 'lost'; });
+      return { winner: null, loserIds: [], resolved: activeBids.length };
+    }
+
+    // Mark bids: winner = won, rest = lost
+    const loserIds = [];
+    activeBids.forEach(bid => {
+      if (bid.id === winner.id) {
+        bid.status = 'won';
+      } else {
+        bid.status = 'lost';
+        loserIds.push(bid.userId);
+      }
+    });
+
+    // Create winner record for tomorrow's display
+    const tomorrow = dateStr(1);
+    const { id } = require('../db');
+    db.winners.push({
+      id: id(),
+      userId: winner.userId,
+      displayDate: tomorrow,
+      bidAmount: winner.amount,
+      createdAt: new Date().toISOString(),
+    });
 
     return {
-      winner:   winnerRecord,
-      loserIds: activeBids.filter(b => b.status === 'lost').map(b => b.userId),
+      winner: {
+        userId: winner.userId,
+        displayDate: tomorrow,
+        bidAmount: winner.amount,
+      },
+      loserIds,
       resolved: activeBids.length,
     };
   }

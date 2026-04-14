@@ -110,6 +110,14 @@ app.get('/{*path}', (req, res, next) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+// CSRF Token Endpoint - Get a token for state-changing requests
+app.get('/api/csrf-token', (req, res) => {
+  // For unauthenticated routes, use a session ID or client ID
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(32).toString('hex');
+  res.json({ success: true, csrfToken: token });
+});
+
 // 404 for unknown API routes
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found` });

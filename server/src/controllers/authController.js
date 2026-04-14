@@ -33,7 +33,7 @@ async function register(req, res) {
   const role = email.endsWith(`@${ADMIN_DOMAIN}`) && !email.includes('alumni') ? 'admin' : 'alumni';
 
   const newUser  = await User.create({ email, password, name, role });
-  const rawToken = Token.createEmailToken(newUser.id, 24);
+  const rawToken = await Token.createEmailToken(newUser.id, 24);
   await sendVerificationEmail(email, rawToken);
 
   res.status(201).json({
@@ -44,11 +44,11 @@ async function register(req, res) {
 }
 
 // verifyEmail 
-function verifyEmail(req, res) {
+async function verifyEmail(req, res) {
   if (!handleValidation(req, res)) return;
 
   const { token } = req.query;
-  const record = Token.findValidEmailToken(token);
+  const record = await Token.findValidEmailToken(token);
 
   if (!record) {
     return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
@@ -98,7 +98,7 @@ async function forgotPassword(req, res) {
   if (!user) return res.json({ success: true, message: GENERIC });
 
   const expiryMinutes = parseInt(process.env.RESET_TOKEN_EXPIRES_MINUTES || '30');
-  const rawToken = Token.createResetToken(user.id, expiryMinutes);
+  const rawToken = await Token.createResetToken(user.id, expiryMinutes);
   await sendPasswordResetEmail(user.email, rawToken);
 
   res.json({ success: true, message: GENERIC });
@@ -109,7 +109,7 @@ async function resetPassword(req, res) {
   if (!handleValidation(req, res)) return;
 
   const { token, password } = req.body;
-  const record = Token.findValidResetToken(token);
+  const record = await Token.findValidResetToken(token);
 
   if (!record) {
     return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });

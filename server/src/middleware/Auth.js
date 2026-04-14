@@ -1,7 +1,24 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { db } = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'eastminster-alumni-secret-changeme';
+
+// CSRF Token Generation & Validation
+const csrfTokens = new Map(); // userId → token
+
+function generateCsrfToken(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  csrfTokens.set(userId, token);
+  return token;
+}
+
+function validateCsrfToken(userId, token) {
+  const stored = csrfTokens.get(userId);
+  if (!stored || stored !== token) return false;
+  csrfTokens.delete(userId); // Single-use
+  return true;
+}
 
 // JWT Authentication 
 function authenticate(req, res, next) {
@@ -28,6 +45,20 @@ function authenticate(req, res, next) {
       message: err.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid token',
     });
   }
+}
+
+//CSFR Protection Middleware 
+function validateCsrf(req, res, next) {
+  // Only validate state-changing requests
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  const csrfToken = req.headers['x-csrf-token'] || req.body.csrfToken;
+  if (!csrfToken || !validateCsrfToken(req.user.id, csrfToken)) {
+    return res.status(403).json({ success: false, message: 'CSRF token invalid or missing' });
+  }
+  next();
 }
 
 // API Key Authentication 
@@ -84,4 +115,12 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { authenticate, authenticateKey, requireAdmin, JWT_SECRET };
+module.exports = { 
+  authenticate, 
+  authenticateKey, 
+  requireAdmin, 
+  validateCsrf,
+  generateCsrfToken,
+  validateCsrfToken,
+  JWT_SECRET 
+};
