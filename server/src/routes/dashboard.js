@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DashboardController = require('../controllers/dashboardController');
-const { authenticateKey } = require('../middleware/authMiddleware');
+const { authenticateKey } = require('../middleware/Auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 /**

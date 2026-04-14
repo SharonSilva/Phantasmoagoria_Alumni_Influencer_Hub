@@ -10,6 +10,7 @@ const { body, validationResult, query, param } = require('express-validator');
 // Auth Validation
 const validateRegistration = [
   body('email')
+    .trim()
     .isEmail()
     .withMessage('Invalid email address')
     .normalizeEmail(),

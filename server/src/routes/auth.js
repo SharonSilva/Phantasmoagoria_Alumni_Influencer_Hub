@@ -1,75 +1,53 @@
-const express = require('express');
+const express     = require('express');
+const { body, query } = require('express-validator');
+const ctrl        = require('../controllers/authController');
+const { authenticate } = require('../middleware/Auth');
+
 const router = express.Router();
-const authController = require('../controllers/authController');
-const { authenticate } = require('../middleware/authMiddleware');
-const { authLimiter } = require('../middleware/rateLimitMiddleware');
-const { 
-  validateRegistration, 
-  validateLogin,
-  validateForgotPassword,
-  validateResetPassword,
-  handleValidationErrors 
-} = require('../middleware/validationMiddleware');
-const { asyncHandler } = require('../middleware/errorHandler');
 
 const DOMAIN = process.env.UNIVERSITY_DOMAIN || 'alumni.eastminster.ac.uk';
 
-// ============= PUBLIC ROUTES =============
+// Reusable strong-password validator 
+const passwordRules = body('password')
+  .isLength({ min: 8 }).withMessage('Minimum 8 characters')
+  .matches(/[A-Z]/).withMessage('Must contain an uppercase letter')
+  .matches(/[0-9]/).withMessage('Must contain a number')
+  .matches(/[^A-Za-z0-9]/).withMessage('Must contain a special character');
 
-/**
- * Register new user
- * POST /api/auth/register
- */
 router.post('/register', [
-  ...validateRegistration,
-  handleValidationErrors
-], asyncHandler(authController.register));
+  body('email')
+    .isEmail().withMessage('Valid email required')
+    .normalizeEmail({ gmail_dots: false })
+    .custom(email => {
+      if (!email.endsWith(`@${DOMAIN}`) && !email.endsWith('@eastminster.ac.uk'))
+        throw new Error(`Must use a @${DOMAIN} university email`);
+      return true;
+    }),
+  passwordRules,
+  body('name').trim().notEmpty().withMessage('Name is required'),
+], ctrl.register);
 
-/**
- * Verify email
- * GET /api/auth/verify-email?token=xyz
- */
-router.get('/verify-email', asyncHandler(authController.verifyEmail));
+router.get('/verify-email', [
+  query('token').notEmpty().withMessage('Token required'),
+], ctrl.verifyEmail);
 
-/**
- * Login user
- * POST /api/auth/login
- */
 router.post('/login', [
-  ...validateLogin,
-  handleValidationErrors
-], authLimiter, asyncHandler(authController.login));
+  body('email').isEmail().normalizeEmail({ gmail_dots: false }),
+  body('password').notEmpty(),
+], ctrl.login);
 
-/**
- * Forgot password
- * POST /api/auth/forgot-password
- */
+router.post('/logout', authenticate, ctrl.logout);
+
 router.post('/forgot-password', [
-  ...validateForgotPassword,
-  handleValidationErrors
-], asyncHandler(authController.forgotPassword));
+  body('email').isEmail().normalizeEmail({ gmail_dots: false }),
+], ctrl.forgotPassword);
 
-/**
- * Reset password with token
- * POST /api/auth/reset-password
- */
 router.post('/reset-password', [
-  ...validateResetPassword,
-  handleValidationErrors
-], asyncHandler(authController.resetPassword));
+  body('token').notEmpty(),
+  body('password')
+    .isLength({ min: 8 }).matches(/[A-Z]/).matches(/[0-9]/).matches(/[^A-Za-z0-9]/),
+], ctrl.resetPassword);
 
-// ============= PROTECTED ROUTES =============
-
-/**
- * Logout user
- * POST /api/auth/logout
- */
-router.post('/logout', authenticate, asyncHandler(authController.logout));
-
-/**
- * Get current user
- * GET /api/auth/me
- */
-router.get('/me', authenticate, asyncHandler(authController.getMe));
+router.get('/me', authenticate, ctrl.getMe);
 
 module.exports = router;

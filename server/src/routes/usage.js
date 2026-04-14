@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UsageStatsController = require('../controllers/usageStatsController');
-const { authenticate, requireAdmin } = require('../middleware/authMiddleware');
+const { authenticate, requireAdmin } = require('../middleware/Auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 // All usage routes require authentication and admin role

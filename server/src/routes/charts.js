@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ChartsController = require('../controllers/chartsController');
-const { authenticateKey } = require('../middleware/authMiddleware');
+const { authenticateKey } = require('../middleware/Auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const chartAuth = authenticateKey(['read:analytics']);

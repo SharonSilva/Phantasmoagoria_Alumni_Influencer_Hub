@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ExportController = require('../controllers/exportController');
-const { authenticateKey } = require('../middleware/authMiddleware');
+const { authenticateKey } = require('../middleware/Auth');
 const { validateExportQuery, handleValidationErrors } = require('../middleware/validationMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 

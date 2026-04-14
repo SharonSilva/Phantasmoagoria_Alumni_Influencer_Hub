@@ -224,12 +224,12 @@ async function resolveAuction(req, res) {
 }
 
 module.exports = {
-  create:        placeBid,       // was: placeBid
-  getUserBids:   getBidHistory,  // was: getBidHistory
-  getBid:        getBidStatus,   // was: getBidStatus
-  updateBid,                     // already correct
-  cancelBid,                     // already correct
   getTomorrowSlot,
+  placeBid,
+  updateBid,
+  cancelBid,
+  getBidStatus,
+  getBidHistory,
   getMonthlyStatus,
   resolveAuction,
 };

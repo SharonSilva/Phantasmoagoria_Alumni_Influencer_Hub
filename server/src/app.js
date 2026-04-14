@@ -13,7 +13,7 @@ const { apiLimiter, authLimiter, bidLimiter } = require('./middleware/rateLimitM
 const { sanitizeInputs } = require('./middleware/validationMiddleware');
 const { errorHandler, asyncHandler } = require('./middleware/errorHandler');
 const setupResponseHandlers = require('./middleware/responseHandler');
-const { authenticate, authenticateKey, requireAdmin, validateCsrf } = require('./middleware/authMiddleware');
+const { authenticate, authenticateKey, requireAdmin, validateCsrf } = require('./middleware/Auth');
 
 // ============= ROUTE IMPORTS =============
 const authRouter = require('./routes/auth');

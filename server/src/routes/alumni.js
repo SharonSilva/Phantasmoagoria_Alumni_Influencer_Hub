@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const AlumniController = require('../controllers/alumniController');
-const { authenticateKey } = require('../middleware/authMiddleware');
+const { authenticateKey } = require('../middleware/Auth');
 const { validateAlumniQuery, validateIdParam, handleValidationErrors } = require('../middleware/validationMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
