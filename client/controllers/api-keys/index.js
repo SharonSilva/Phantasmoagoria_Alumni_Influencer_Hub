@@ -42,24 +42,17 @@ module.exports = {
   show: async function(req, res) {
     try {
       const token = req.session.authToken;
-      const keyId = req.params.api_keys_id;
+      const keyId = req.params.api_keys_id; // The ID coming from your Client URL
 
-      if (!token) {
-        return res.status(401).json({ success: false, error: 'Not authenticated' });
-      }
-
-      const response = await axios.get(`${API_BASE}/keys/${keyId}`, {
+      const response = await axios.get(`${API_BASE}/keys/${keyId}`, { // Backend expects keyId
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      res.json({
-        success: true,
-        data: response.data
-      });
+      res.json({ success: true, data: response.data.data });
     } catch (error) {
       res.status(404).json({ success: false, error: 'API key not found' });
     }
-  },
+},
 
   /**
    * POST /api-keys → Create new API key

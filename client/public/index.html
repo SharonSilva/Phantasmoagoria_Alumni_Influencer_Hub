@@ -5,16 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Alumni Analytics Dashboard</title>
   <link rel="stylesheet" href="/style.css">
-  
-  <!-- Chart.js for visualizations -->
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-  
-  <!-- HTML2PDF for exporting -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
   <div class="app-container">
-    <!-- Header -->
     <header class="navbar">
       <div class="navbar-brand">
         <h1>📊 Alumni Analytics Dashboard</h1>
@@ -23,17 +20,24 @@
         <a href="#dashboard" class="nav-link active">Dashboard</a>
         <a href="#alumni" class="nav-link">Alumni</a>
         <a href="#charts" class="nav-link">Charts</a>
+        <a href="#bidding" class="nav-link">Bidding</a> 
         <a href="#api-keys" class="nav-link">API Keys</a>
-        <a href="#" class="nav-link logout">Logout</a>
+        <a href="#logout" class="nav-link logout">Logout</a>
       </nav>
     </header>
 
-    <!-- Main Content -->
     <main class="container" id="content">
-      <div class="loading">Loading...</div>
+      <div class="login-container">
+        <h2>University Staff Login</h2>
+        <p>Please enter your credentials to access the dashboard.</p>
+        <form id="loginForm">
+          <input type="email" id="loginEmail" placeholder="University Email" required>
+          <input type="password" id="loginPassword" placeholder="Password" required>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+      </div>
     </main>
 
-    <!-- Messages/Alerts -->
     <div id="message-box" class="alert hidden"></div>
   </div>
 

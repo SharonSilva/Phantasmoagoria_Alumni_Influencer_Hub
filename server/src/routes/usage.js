@@ -1,34 +1,43 @@
 const express = require('express');
 const router = express.Router();
 const UsageStatsController = require('../controllers/usageStatsController');
-const { authenticate, requireAdmin } = require('../middleware/Auth');
+const { authenticate, requireAdmin, authenticateKey } = require('../middleware/Auth');
 const { asyncHandler } = require('../middleware/errorHandler');
-
-// All usage routes require authentication and admin role
-router.use(authenticate, requireAdmin);
 
 /**
  * Get all API usage statistics
- * GET /api/usage/stats
+ * Access: Admin Session OR API Key with 'read:analytics'
  */
-router.get('/stats', asyncHandler(UsageStatsController.getAllUsageStats));
-
-/**
- * Get usage for specific API key
- * GET /api/usage/key/:keyId
- */
-router.get('/key/:keyId', asyncHandler(UsageStatsController.getKeyUsageStats));
+router.get('/stats', 
+  authenticateKey(['read:analytics']), 
+  asyncHandler(UsageStatsController.getAllUsageStats)
+);
 
 /**
  * Get endpoint usage statistics
- * GET /api/usage/endpoints
  */
-router.get('/endpoints', asyncHandler(UsageStatsController.getEndpointStats));
+router.get('/endpoints', 
+  authenticateKey(['read:analytics']), 
+  asyncHandler(UsageStatsController.getEndpointStats)
+);
+
+/**
+ * Get usage for specific API key
+ * Usually an Admin-only task to investigate a specific key
+ */
+router.get('/key/:keyId', 
+  authenticate, 
+  requireAdmin, 
+  asyncHandler(UsageStatsController.getKeyUsageStats)
+);
 
 /**
  * Get usage report for date range
- * GET /api/usage/report?startDate=2024-01-01&endDate=2024-01-31
  */
-router.get('/report', asyncHandler(UsageStatsController.getUsageReport));
+router.get('/report', 
+  authenticate, 
+  requireAdmin, 
+  asyncHandler(UsageStatsController.getUsageReport)
+);
 
 module.exports = router;

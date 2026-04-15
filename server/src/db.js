@@ -181,7 +181,7 @@ async function seed() {
   // API Keys (developer keys) 
   db.apiKeys.push(
     { id: 'k1', name: 'AR Client (Production)', key: 'east_arkey_prod_abc123xyz', ownerId: 'u7', scopes: ['read:featured'], active: true, createdAt: dateStr(-30), lastUsedAt: dateStr(-1) },
-    { id: 'k2', name: 'Mobile App v2',          key: 'east_mobile_v2_def456uvw', ownerId: 'u7', scopes: ['read:featured', 'read:alumni', 'read:sponsors', 'read:events'], active: true, createdAt: dateStr(-15), lastUsedAt: today() },
+    { id: 'k2', name: 'Mobile App v2',          key: 'east_mobile_v2_def456uvw', ownerId: 'u7', scopes: ['read:featured', 'read:alumni', 'read:sponsors', 'read:events', 'read:analytics'], active: true, createdAt: dateStr(-15), lastUsedAt: today() },
     { id: 'k3', name: 'Revoked Test Key',        key: 'east_revoked_ghi789rst',   ownerId: 'u7', scopes: ['read:featured'], active: false, createdAt: dateStr(-60), lastUsedAt: dateStr(-20) },
   );
 

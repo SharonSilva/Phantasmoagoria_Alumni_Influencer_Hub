@@ -1,0 +1,62 @@
+<div class="dashboard-header">
+    <h1>Actionable Intelligence Dashboard</h1>
+    <p>Real-time graduate outcome tracking and curriculum gap analysis.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="card">
+        <h3>Alumni Tracked</h3>
+        <p id="stat-alumni">Loading...</p>
+    </div>
+    <div class="card">
+        <h3>Bidding Activity</h3>
+        <p id="stat-bids">Loading...</p>
+    </div>
+    <div class="card">
+        <h3>Top Skill Required</h3>
+        <p id="stat-skill">AWS</p>
+    </div>
+</div>
+
+<div class="charts-grid">
+    <div class="chart-card">
+        <h3>Scenario 1: Skills Gap Detection</h3>
+        <canvas id="skillsGapChart"></canvas>
+        <p class="insight">Insight: These certifications are being acquired independently by graduates.</p>
+    </div>
+    <div class="chart-card">
+        <h3>Scenario 2: Emerging Career Pathways</h3>
+        <canvas id="industryChart"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3>Scenario 3: Employment Trends</h3>
+        <canvas id="trendsChart"></canvas>
+    </div>
+</div>
+
+<script>
+    // This script runs in the browser after the page loads
+    window.addEventListener('load', async () => {
+        // Fetch stats
+        const dashRes = await fetch('/dashboard/api');
+        const dashData = await dashRes.json();
+        document.getElementById('stat-alumni').textContent = dashData.metrics.totalAlumni;
+        document.getElementById('stat-bids').textContent = dashData.metrics.totalBids;
+
+        // Fetch and Render Skills Gap Chart
+        const skillRes = await fetch('/charts/skillsGap');
+        const skillData = await skillRes.json();
+        new Chart(document.getElementById('skillsGapChart'), {
+            type: skillData.type,
+            data: { labels: skillData.labels, datasets: skillData.datasets }
+        });
+
+        // Fetch and Render Industry Chart
+        const indRes = await fetch('/charts/industryDistribution');
+        const indData = await indRes.json();
+        new Chart(document.getElementById('industryChart'), {
+            type: indData.type,
+            data: { labels: indData.labels, datasets: indData.datasets }
+        });
+    });
+</script>
