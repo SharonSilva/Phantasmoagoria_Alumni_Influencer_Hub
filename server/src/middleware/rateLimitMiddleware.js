@@ -25,7 +25,9 @@ const authLimiter = rateLimit({
 // Bidding limiter
 const bidLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 bids per minute
+  max: 10, // mutation attempts per minute
+  // Do not throttle read-only bidding dashboard requests.
+  skip: (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
   message: { success: false, message: 'Too many bid attempts' }
 });
 

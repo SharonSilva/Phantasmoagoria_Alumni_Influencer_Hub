@@ -80,6 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => box.classList.add('hidden'), 4000);
   }
 
+  function renderLoadingState(title = 'Loading dashboard...') {
+    contentArea.innerHTML = `
+      <div class="page-enter">
+        <div class="loading-skeleton skeleton-title"></div>
+        <p class="insight">${escapeHtml(title)}</p>
+        <div class="skeleton-grid" style="margin-top:14px">
+          <div class="loading-skeleton skeleton-card"></div>
+          <div class="loading-skeleton skeleton-card"></div>
+          <div class="loading-skeleton skeleton-card"></div>
+          <div class="loading-skeleton skeleton-card"></div>
+        </div>
+      </div>
+    `;
+  }
+
   function toCsv(rows) {
     if (!rows.length) return '';
     const headers = Object.keys(rows[0]);
@@ -230,15 +245,102 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>`;
   }
 
+  function percent(part, total) {
+    if (!total) return 0;
+    return Number(((part / total) * 100).toFixed(1));
+  }
+
+  function topNEntries(objectMap = {}, count = 3) {
+    return Object.entries(objectMap)
+      .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
+      .slice(0, count);
+  }
+
+  function computeCurriculumIntelligence({ alumni = [], skillsGap = {}, certifications = {}, biddingTrend = {} } = {}) {
+    const totalAlumni = alumni.length;
+    const roleKeywords = ['data analyst', 'data analytics', 'business intelligence', 'bi analyst'];
+    const businessProgrammes = ['business', 'management', 'mba', 'marketing', 'finance'];
+    const cloudKeywords = ['aws', 'azure', 'gcp', 'cloud'];
+    const agileKeywords = ['agile', 'scrum'];
+
+    const businessIntoData = alumni.filter(a => {
+      const programme = String(a.programme || '').toLowerCase();
+      const role = String(a.currentRole || '').toLowerCase();
+      const isBusiness = businessProgrammes.some(k => programme.includes(k));
+      const isDataRole = roleKeywords.some(k => role.includes(k));
+      return isBusiness && isDataRole;
+    });
+
+    const certLabels = certifications.labels || [];
+    const certData = (certifications.datasets && certifications.datasets[0]?.data) || [];
+    const cloudCertCount = certLabels.reduce((sum, label, index) => {
+      const normalized = String(label || '').toLowerCase();
+      if (cloudKeywords.some(k => normalized.includes(k))) {
+        return sum + Number(certData[index] || 0);
+      }
+      return sum;
+    }, 0);
+    const totalCertCount = certData.reduce((sum, val) => sum + Number(val || 0), 0);
+
+    const skillsLabels = skillsGap.labels || [];
+    const skillsData = (skillsGap.datasets && skillsGap.datasets[0]?.data) || [];
+    const topSkills = skillsLabels.map((label, idx) => ({
+      label,
+      value: Number(skillsData[idx] || 0),
+    })).sort((a, b) => b.value - a.value).slice(0, 3);
+
+    const agileCertCount = certLabels.reduce((sum, label, index) => {
+      const normalized = String(label || '').toLowerCase();
+      if (agileKeywords.some(k => normalized.includes(k))) {
+        return sum + Number(certData[index] || 0);
+      }
+      return sum;
+    }, 0);
+
+    const bidValues = (biddingTrend.datasets && biddingTrend.datasets[0]?.data) || [];
+    const firstHalf = bidValues.slice(0, Math.max(1, Math.floor(bidValues.length / 2)));
+    const secondHalf = bidValues.slice(Math.max(1, Math.floor(bidValues.length / 2)));
+    const avg = arr => arr.length ? arr.reduce((s, v) => s + Number(v || 0), 0) / arr.length : 0;
+    const momentumPct = firstHalf.length ? percent(avg(secondHalf) - avg(firstHalf), avg(firstHalf) || 1) : 0;
+
+    const recommendations = [
+      topSkills[0]
+        ? `Integrate "${topSkills[0].label}" learning outcomes into core modules next semester.`
+        : 'Introduce structured certification pathways in high-demand technical areas.',
+      `Create cross-discipline pathway for business students entering data analytics roles (${percent(businessIntoData.length, totalAlumni)}% observed).`,
+      `Embed Agile/Scrum practices in project modules (current related certification volume: ${agileCertCount}).`,
+      `Expand cloud labs and practical content; cloud-related certifications represent ${percent(cloudCertCount, totalCertCount)}% of tracked certifications.`,
+    ];
+
+    return {
+      totalAlumni,
+      businessIntoDataCount: businessIntoData.length,
+      businessIntoDataPct: percent(businessIntoData.length, totalAlumni),
+      cloudCertCount,
+      cloudCertPct: percent(cloudCertCount, totalCertCount),
+      agileCertCount,
+      bidMomentumPct: momentumPct,
+      topSkills,
+      recommendations,
+    };
+  }
+
   async function loadProfile() {
     contentArea.innerHTML = '<h2>My Profile</h2><p>Loading profile...</p>';
     try {
       const profileRes = await backendFetch('/profile');
       const p = profileRes.data || {};
+      const totalEntries = profileSections.reduce((sum, section) => sum + ((p[section.key] || []).length), 0);
 
       contentArea.innerHTML = `
         <h2>My Alumni Profile</h2>
         <p class="insight">Manage your profile, image, and all qualification/employment sections.</p>
+        <div class="profile-summary-grid">
+          <div class="card profile-summary-card"><h3>Qualification Entries</h3><div class="value">${totalEntries}</div></div>
+          <div class="card profile-summary-card"><h3>Current Role</h3><div class="profile-meta-value">${escapeHtml(p.currentRole || 'Not set')}</div></div>
+          <div class="card profile-summary-card"><h3>Current Employer</h3><div class="profile-meta-value">${escapeHtml(p.currentEmployer || 'Not set')}</div></div>
+          <div class="card profile-summary-card"><h3>Graduation Year</h3><div class="profile-meta-value">${escapeHtml(p.graduationYear || 'Not set')}</div></div>
+        </div>
 
         <div class="card" style="margin-bottom:16px">
           <h3>Core Profile</h3>
@@ -259,7 +361,16 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
             <button type="submit" class="btn-primary">Upload Photo</button>
           </form>
-          ${p.photoUrl ? `<p style="margin-top:10px">Current photo: <a href="http://localhost:3000${p.photoUrl}" target="_blank" rel="noreferrer">View image</a></p>` : ''}
+          ${p.photoUrl ? `
+            <div class="profile-photo-preview-wrap">
+              <img
+                src="http://localhost:3000${p.photoUrl}?v=${Date.now()}"
+                alt="Uploaded profile photo"
+                class="profile-photo-preview"
+              >
+              <p>Current photo: <a href="http://localhost:3000${p.photoUrl}" target="_blank" rel="noreferrer">Open full image</a></p>
+            </div>
+          ` : '<p style="margin-top:10px;color:#64748b">No profile photo uploaded yet.</p>'}
         </div>
 
         <div id="profileSections"></div>
@@ -282,13 +393,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('photoForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const res = await fetch(`${BACKEND_API_BASE}/profile/photo`, {
+        const body = await backendFetch('/profile/photo', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${authToken}` },
           body: fd,
         });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
         showMessage('Photo uploaded successfully.', 'success');
         loadProfile();
       });
@@ -307,27 +415,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = items.map(item => `
           <tr>
             ${section.fields.map(f => `<td>${escapeHtml(item[f.name] || '')}</td>`).join('')}
-            <td>
+            <td class="profile-action-cell">
               <button type="button" class="btn-primary profile-edit-btn" data-section="${section.key}" data-id="${item.id}">Edit</button>
-              <button type="button" class="btn-primary profile-delete-btn" data-section="${section.key}" data-id="${item.id}" style="background:#f93e3e;margin-left:6px">Delete</button>
+              <button type="button" class="btn-primary btn-danger profile-delete-btn" data-section="${section.key}" data-id="${item.id}">Delete</button>
             </td>
           </tr>`).join('');
 
         const html = `
-          <div class="card" style="margin-bottom:16px">
-            <h3>${section.title}</h3>
+          <div class="card profile-section-card" style="margin-bottom:16px">
+            <div class="profile-section-header">
+              <h3>${section.title}</h3>
+              <span class="pill">${items.length} entries</span>
+            </div>
             <form class="profile-section-form" data-section="${section.key}" style="display:grid;gap:8px;margin-top:10px">
               <input type="hidden" name="itemId" value="">
+              <input type="hidden" name="sectionTitle" value="${section.title}">
+              <p class="profile-form-label">Add or update ${section.title.toLowerCase()} details</p>
               ${fieldInputs}
-              <div style="display:flex;gap:8px">
+              <div class="profile-form-actions">
                 <button type="submit" class="btn-primary">Save ${section.title}</button>
-                <button type="button" class="btn-primary profile-cancel-btn" data-section="${section.key}" style="background:#64748b">Cancel Edit</button>
+                <button type="button" class="btn-primary btn-secondary profile-cancel-btn" data-section="${section.key}">Cancel Edit</button>
               </div>
             </form>
             <div class="data-table-container" style="margin-top:12px">
               <table class="data-table">
                 <thead><tr>${tableHeaders}<th>Actions</th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="${section.fields.length + 1}">No entries yet.</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="${section.fields.length + 1}" class="profile-empty-row">No entries yet. Add your first record above.</td></tr>`}</tbody>
               </table>
             </div>
           </div>
@@ -396,6 +509,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!item) throw new Error('Entry no longer exists');
             const form = document.querySelector(`form[data-section="${editBtn.dataset.section}"]`);
             form.querySelector('input[name="itemId"]').value = item.id;
+            form.classList.add('is-editing');
+            const helper = form.querySelector('.profile-form-label');
+            if (helper) helper.textContent = `Editing ${section.title.slice(0, -1).toLowerCase()} entry`;
             section.fields.forEach(f => {
               const field = form.querySelector(`[name="${f.name}"]`);
               if (field) field.value = item[f.name] || '';
@@ -414,13 +530,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── DASHBOARD ────────────────────────────────────────────────────────────
 
   const loadDashboard = async () => {
-    contentArea.innerHTML = '<h2>Dashboard</h2><p>Loading stats...</p>';
+    renderLoadingState('Loading analytics overview and recent winners...');
     try {
-      const res = await apiFetch('/dashboard/api');
+      const [res, alumniRes, skillsRes, certRes, biddingTrendRes] = await Promise.all([
+        apiFetch('/dashboard/api'),
+        apiFetch('/alumnis?page=1&limit=200'),
+        apiFetch('/charts/skillsGap'),
+        apiFetch('/charts/certifications'),
+        apiFetch('/charts/biddingTrends'),
+      ]);
       const m   = res.metrics || {};
+      const curriculum = computeCurriculumIntelligence({
+        alumni: alumniRes.data || [],
+        skillsGap: skillsRes || {},
+        certifications: certRes || {},
+        biddingTrend: biddingTrendRes || {},
+      });
+      const topProgrammePairs = topNEntries(res.breakdown?.byProgramme || {}, 3);
+      const topIndustryPairs = topNEntries(res.breakdown?.byIndustry || {}, 3);
 
       contentArea.innerHTML = `
         <h2>Analytics Overview</h2>
+        <div class="interactive-panel">
+          <span class="pill">Live API Data</span>
+          <span class="pill">Interactive Reports</span>
+          <span class="pill">Export Ready</span>
+        </div>
         <div class="stats-grid">
           <div class="card"><h3>Total Alumni</h3><div class="value">${m.totalAlumni || 0}</div></div>
           <div class="card"><h3>Total Bids</h3><div class="value">${m.totalBids || 0}</div></div>
@@ -429,12 +564,40 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="card"><h3>This Month</h3><div class="value">${m.monthlyWinners || 0}</div></div>
           <div class="card"><h3>Sponsors</h3><div class="value">${m.totalSponsors || 0}</div></div>
         </div>
+        <div class="card" style="margin-top:16px">
+          <h3>Curriculum Intelligence</h3>
+          <p class="insight">Real-time post-graduation intelligence for curriculum and strategic planning decisions.</p>
+          <div class="stats-grid" style="margin-top:10px">
+            <div class="card"><h3>Business → Data Roles</h3><div class="value">${curriculum.businessIntoDataPct}%</div></div>
+            <div class="card"><h3>Cloud Certification Share</h3><div class="value">${curriculum.cloudCertPct}%</div></div>
+            <div class="card"><h3>Agile/Scrum Cert Volume</h3><div class="value">${curriculum.agileCertCount}</div></div>
+            <div class="card"><h3>Bidding Demand Momentum</h3><div class="value">${curriculum.bidMomentumPct}%</div></div>
+          </div>
+          <div style="margin-top:10px">
+            <h4 style="margin-bottom:6px">Top Skills Gap Signals</h4>
+            <ul>
+              ${curriculum.topSkills.map(s => `<li><strong>${escapeHtml(s.label)}</strong>: ${escapeHtml(s.value)}</li>`).join('') || '<li>No data available.</li>'}
+            </ul>
+            <h4 style="margin:8px 0 6px">Top Programme Distribution</h4>
+            <ul>
+              ${topProgrammePairs.map(([label, value]) => `<li>${escapeHtml(label)}: ${escapeHtml(value)}</li>`).join('') || '<li>No programme data.</li>'}
+            </ul>
+            <h4 style="margin:8px 0 6px">Top Industry Distribution</h4>
+            <ul>
+              ${topIndustryPairs.map(([label, value]) => `<li>${escapeHtml(label)}: ${escapeHtml(value)}</li>`).join('') || '<li>No industry data.</li>'}
+            </ul>
+            <h4 style="margin:8px 0 6px">Recommended Actions</h4>
+            <ul>
+              ${curriculum.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
         <h3 style="margin-top:24px">Recent Winners</h3>
         <table class="data-table">
           <thead><tr><th>Name</th><th>Date</th><th>Bid Amount</th></tr></thead>
           <tbody>
             ${(res.recentWinners || []).map(w =>
-              `<tr><td>${w.name}</td><td>${w.displayDate}</td><td>£${w.bidAmount}</td></tr>`
+              `<tr><td>${w.name}</td><td>${w.displayDate}</td><td>${w.isHigh ? 'High Tier' : 'Standard Tier'}</td></tr>`
             ).join('')}
           </tbody>
         </table>
@@ -447,6 +610,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <label><input type="checkbox" class="report-metric" value="totalWinners" checked> Winners</label>
             <label><input type="checkbox" class="report-metric" value="monthlyWinners" checked> Monthly Winners</label>
             <label><input type="checkbox" class="report-metric" value="totalSponsors" checked> Sponsors</label>
+            <label><input type="checkbox" class="report-metric" value="businessIntoDataPct" checked> Business→Data %</label>
+            <label><input type="checkbox" class="report-metric" value="cloudCertPct" checked> Cloud Cert %</label>
+            <label><input type="checkbox" class="report-metric" value="agileCertCount" checked> Agile/Scrum Count</label>
+            <label><input type="checkbox" class="report-metric" value="bidMomentumPct" checked> Bidding Momentum %</label>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button id="downloadDashboardCsv" class="btn-primary">Download Dashboard CSV</button>
@@ -457,13 +624,42 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('downloadDashboardCsv').addEventListener('click', () => {
         const selected = Array.from(document.querySelectorAll('.report-metric:checked')).map(i => i.value);
         const row = {};
-        selected.forEach(k => { row[k] = m[k] ?? 0; });
+        const extraMap = {
+          businessIntoDataPct: curriculum.businessIntoDataPct,
+          cloudCertPct: curriculum.cloudCertPct,
+          agileCertCount: curriculum.agileCertCount,
+          bidMomentumPct: curriculum.bidMomentumPct,
+        };
+        selected.forEach(k => { row[k] = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0); });
         downloadTextFile('dashboard-report.csv', toCsv([row]), 'text/csv');
       });
 
       document.getElementById('downloadDashboardPdf').addEventListener('click', async () => {
         const selected = Array.from(document.querySelectorAll('.report-metric:checked')).map(i => i.value);
-        const html = `<ul>${selected.map(k => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(m[k] ?? 0)}</li>`).join('')}</ul>`;
+        const generatedAt = new Date().toLocaleString();
+        const extraMap = {
+          businessIntoDataPct: `${curriculum.businessIntoDataPct}%`,
+          cloudCertPct: `${curriculum.cloudCertPct}%`,
+          agileCertCount: curriculum.agileCertCount,
+          bidMomentumPct: `${curriculum.bidMomentumPct}%`,
+        };
+        const metricItems = selected.map(k => {
+          const value = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0);
+          return `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(value)}</li>`;
+        }).join('');
+        const recommendationItems = curriculum.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+        const html = `
+          <p><strong>Generated:</strong> ${escapeHtml(generatedAt)}</p>
+          <p><strong>Data source:</strong> Alumni live platform APIs</p>
+          <h3>Selected Metrics</h3>
+          <ul>${metricItems}</ul>
+          <h3>Top Skill Signals</h3>
+          <ul>
+            ${curriculum.topSkills.map(s => `<li>${escapeHtml(s.label)}: ${escapeHtml(s.value)}</li>`).join('') || '<li>No skills data available.</li>'}
+          </ul>
+          <h3>Curriculum Recommendations</h3>
+          <ul>${recommendationItems}</ul>
+        `;
         await exportSectionToPdf('Dashboard Report', html);
       });
     } catch (err) {
@@ -475,8 +671,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const loadAlumni = async () => {
     const preset = JSON.parse(localStorage.getItem('alumniFilterPreset') || '{}');
+    renderLoadingState('Preparing alumni directory, filters, and export tools...');
     contentArea.innerHTML = `
       <h2>Alumni Directory</h2>
+      <div class="interactive-panel">
+        <span class="pill">Filter by Programme</span>
+        <span class="pill">Filter by Industry</span>
+        <span class="pill">Filter by Graduation Year</span>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:15px;flex-wrap:wrap">
         <input type="text" id="alumniSearch" placeholder="Search name, role..." style="flex:1;padding:8px" value="${escapeHtml(preset.search || '')}">
         <input type="text" id="filterProgramme" placeholder="Programme" style="padding:8px" value="${escapeHtml(preset.programme || '')}">
@@ -576,8 +778,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadCharts = async () => {
     chartInstances.forEach(c => c.destroy());
     chartInstances.clear();
+    renderLoadingState('Loading chart datasets with insight indicators...');
     contentArea.innerHTML = `
       <h2>Analytics Charts</h2>
+      <div class="interactive-panel">
+        <span class="pill">Bar + Line + Pie + Radar + Doughnut</span>
+        <span class="pill">Color-coded Insights</span>
+        <span class="pill">Tooltip Percentages</span>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <button id="downloadAllCharts" class="btn-primary">Download Chart Images</button>
       </div>
@@ -668,13 +876,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── API KEY USAGE LOGS ───────────────────────────────────────────────────
 
   const loadUsageLogs = async () => {
-    contentArea.innerHTML = '<h2>API Key Usage</h2><p>Loading...</p>';
+    renderLoadingState('Loading API usage logs, scopes, and endpoint analytics...');
     try {
-      const res  = await apiFetch('/api-keys/usage');
+      const [res, endpointStatsRes] = await Promise.all([
+        apiFetch('/api-keys/usage'),
+        apiFetch('/api-keys/endpointStats'),
+      ]);
       const logs = res.data || [];
+      const endpointStats = endpointStatsRes?.data?.mostUsedEndpoints || {};
 
       contentArea.innerHTML = `
         <h2>Security Audit Trail</h2>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Client Access Scoping</h3>
+          <p><strong>Analytics Dashboard key scopes:</strong> <code>read:alumni</code>, <code>read:analytics</code></p>
+          <p><strong>Mobile AR key scopes:</strong> <code>read:featured</code>, <code>read:alumni</code>, <code>read:sponsors</code>, <code>read:events</code></p>
+          <p class="insight">This dashboard uses the analytics API key only, so mobile-only endpoints are not used here.</p>
+        </div>
         <table class="data-table">
           <thead><tr><th>Key Name</th><th>Scopes</th><th>Total Requests</th><th>Today</th><th>Last Used</th><th>Active</th></tr></thead>
           <tbody>
@@ -688,9 +906,131 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${l.active ? '✓' : '✗'}</td>
               </tr>`).join('')}
           </tbody>
-        </table>`;
+        </table>
+        <div class="card" style="margin-top:16px">
+          <h3>Most Accessed Endpoints (Usage Statistics)</h3>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead><tr><th>Endpoint</th><th>Requests</th></tr></thead>
+              <tbody>
+                ${Object.entries(endpointStats).map(([endpoint, hits]) => `
+                  <tr><td>${endpoint}</td><td>${hits}</td></tr>
+                `).join('') || '<tr><td colspan="2">No endpoint usage yet.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
     } catch (err) {
       contentArea.innerHTML = `<div class="error">Error loading logs: ${err.message}</div>`;
+    }
+  };
+
+  // ─── BIDDING ───────────────────────────────────────────────────────────────
+
+  const loadBidding = async () => {
+    renderLoadingState('Loading blind bidding status and monthly limits...');
+    try {
+      const [tomorrowRes, statusRes, monthlyRes, historyRes] = await Promise.all([
+        apiFetch('/bids/tomorrow'),
+        apiFetch('/bids/status'),
+        apiFetch('/bids/monthly'),
+        apiFetch('/bids/history'),
+      ]);
+
+      const tomorrow = tomorrowRes.data || {};
+      const status = statusRes.data || {};
+      const monthly = monthlyRes.data || {};
+      const history = historyRes.data || [];
+      const activeBid = tomorrow.myBidToday || null;
+
+      contentArea.innerHTML = `
+        <h2>Blind Bidding</h2>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Tomorrow's Display Slot</h3>
+          <p><strong>Display date:</strong> ${tomorrow.slotDate || 'N/A'}</p>
+          <p><strong>Bidding open:</strong> ${tomorrow.biddingOpen ? 'Yes' : 'No'}</p>
+          <p><strong>Closing time:</strong> ${tomorrow.biddingClosesAt || 'N/A'}</p>
+          <p class="insight">Blind auction mode: highest bid amount is never shown.</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Win/Lose Feedback</h3>
+          <p>${status.message || 'No status available.'}</p>
+          <p><strong>Currently winning:</strong> ${status.isCurrentlyWinning ? 'Yes' : 'No'}</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Monthly Limit Status</h3>
+          <p>${monthly.message || ''}</p>
+          <p><strong>Wins this month:</strong> ${monthly.winsThisMonth ?? 0}</p>
+          <p><strong>Max allowed:</strong> ${monthly.maxAllowed ?? 3}</p>
+          <p><strong>Slots remaining:</strong> ${monthly.slotsRemaining ?? 0}</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Place Bid</h3>
+          <form id="placeBidForm" style="display:flex;gap:10px;flex-wrap:wrap">
+            <input type="number" min="1" step="0.01" id="bidAmount" placeholder="Bid amount (£)" required style="max-width:240px">
+            <button type="submit" class="btn-primary">Submit Blind Bid</button>
+          </form>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Update Bid (Increase Only)</h3>
+          ${activeBid ? `
+            <p>Active bid ID: <code>${activeBid.id}</code></p>
+            <form id="updateBidForm" style="display:flex;gap:10px;flex-wrap:wrap">
+              <input type="number" min="1" step="0.01" id="updatedBidAmount" placeholder="New higher amount (£)" required style="max-width:240px">
+              <button type="submit" class="btn-primary">Increase Bid</button>
+            </form>
+          ` : '<p>No active bid today. Place a bid first.</p>'}
+        </div>
+        <h3>My Bid History</h3>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Status</th><th>Submitted At</th></tr></thead>
+            <tbody>
+              ${history.map(row => `
+                <tr>
+                  <td>${row.bidDate || 'N/A'}</td>
+                  <td>${row.status || 'N/A'}</td>
+                  <td>${row.submittedAt ? new Date(row.submittedAt).toLocaleString() : 'N/A'}</td>
+                </tr>
+              `).join('') || '<tr><td colspan="3">No bids yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('placeBidForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const amount = parseFloat(document.getElementById('bidAmount').value);
+        try {
+          const response = await apiFetch('/bids', {
+            method: 'POST',
+            body: JSON.stringify({ amount }),
+          });
+          const feedback = response?.data?.feedback?.message || 'Bid submitted.';
+          showMessage(feedback, 'success');
+          loadBidding();
+        } catch (err) {
+          showMessage(`Bid failed: ${err.message}`, 'danger');
+        }
+      });
+
+      document.getElementById('updateBidForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const amount = parseFloat(document.getElementById('updatedBidAmount').value);
+        try {
+          const response = await apiFetch(`/bids/${activeBid.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ amount }),
+          });
+          const feedback = response?.data?.feedback?.message || 'Bid updated.';
+          showMessage(feedback, 'success');
+          loadBidding();
+        } catch (err) {
+          showMessage(`Update failed: ${err.message}`, 'danger');
+        }
+      });
+    } catch (err) {
+      contentArea.innerHTML = `<div class="error">Failed to load bidding dashboard: ${err.message}</div>`;
     }
   };
 
@@ -706,19 +1046,138 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="password" id="loginPassword" placeholder="Password" required>
           <button type="submit" class="btn-primary">Login</button>
         </form>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+          <a href="#register">Create account</a>
+          <a href="#forgot">Forgot password?</a>
+          <a href="#verify">Verify email</a>
+          <a href="#reset">Reset password</a>
+        </div>
       </div>`;
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  };
+
+  const showRegisterPage = () => {
+    contentArea.innerHTML = `
+      <div class="login-container">
+        <h2>Register University Account</h2>
+        <p>Use your university email domain (e.g. @alumni.eastminster.ac.uk).</p>
+        <form id="registerForm">
+          <input type="text" id="registerName" placeholder="Full Name" required>
+          <input type="email" id="registerEmail" placeholder="University Email" required>
+          <input type="password" id="registerPassword" placeholder="Password (8+ chars, upper, number, special)" required>
+          <button type="submit" class="btn-primary">Register</button>
+        </form>
+        <div style="margin-top:12px"><a href="#login">Back to login</a></div>
+      </div>`;
+    document.getElementById('registerForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = {
+        name: document.getElementById('registerName').value.trim(),
+        email: document.getElementById('registerEmail').value.trim(),
+        password: document.getElementById('registerPassword').value,
+      };
+      try {
+        const response = await apiFetch('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        showMessage(response.message || 'Registered. Please verify your email.', 'success');
+        navigate('#verify');
+      } catch (err) {
+        showMessage(`Registration failed: ${err.message}`, 'danger');
+      }
+    });
+  };
+
+  const showVerifyPage = () => {
+    contentArea.innerHTML = `
+      <div class="login-container">
+        <h2>Verify Email</h2>
+        <p>Paste your verification token from the email link.</p>
+        <form id="verifyForm">
+          <input type="text" id="verifyToken" placeholder="Verification token" required>
+          <button type="submit" class="btn-primary">Verify Email</button>
+        </form>
+        <div style="margin-top:12px"><a href="#login">Back to login</a></div>
+      </div>`;
+    document.getElementById('verifyForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const token = document.getElementById('verifyToken').value.trim();
+      try {
+        const response = await apiFetch(`/auth/verify?token=${encodeURIComponent(token)}`);
+        showMessage(response.message || 'Email verified. You can now log in.', 'success');
+        navigate('#login');
+      } catch (err) {
+        showMessage(`Verification failed: ${err.message}`, 'danger');
+      }
+    });
+  };
+
+  const showForgotPasswordPage = () => {
+    contentArea.innerHTML = `
+      <div class="login-container">
+        <h2>Forgot Password</h2>
+        <p>Enter your university email to receive a reset link.</p>
+        <form id="forgotPasswordForm">
+          <input type="email" id="forgotEmail" placeholder="University Email" required>
+          <button type="submit" class="btn-primary">Send Reset Link</button>
+        </form>
+        <div style="margin-top:12px"><a href="#login">Back to login</a></div>
+      </div>`;
+    document.getElementById('forgotPasswordForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const email = document.getElementById('forgotEmail').value.trim();
+      try {
+        const response = await apiFetch('/auth/forgotPassword', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+        showMessage(response.message || 'Reset instructions sent if account exists.', 'success');
+      } catch (err) {
+        showMessage(`Request failed: ${err.message}`, 'danger');
+      }
+    });
+  };
+
+  const showResetPasswordPage = () => {
+    contentArea.innerHTML = `
+      <div class="login-container">
+        <h2>Reset Password</h2>
+        <p>Use token from your reset email.</p>
+        <form id="resetPasswordForm">
+          <input type="text" id="resetToken" placeholder="Reset token" required>
+          <input type="password" id="resetPassword" placeholder="New password" required>
+          <button type="submit" class="btn-primary">Reset Password</button>
+        </form>
+        <div style="margin-top:12px"><a href="#login">Back to login</a></div>
+      </div>`;
+    document.getElementById('resetPasswordForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const token = document.getElementById('resetToken').value.trim();
+      const password = document.getElementById('resetPassword').value;
+      try {
+        const response = await apiFetch('/auth/resetPassword', {
+          method: 'POST',
+          body: JSON.stringify({ token, password }),
+        });
+        showMessage(response.message || 'Password reset complete. Please log in.', 'success');
+        navigate('#login');
+      } catch (err) {
+        showMessage(`Reset failed: ${err.message}`, 'danger');
+      }
+    });
   };
 
   // ─── ROUTER ───────────────────────────────────────────────────────────────
 
   const navigate = async (hash) => {
     const route = hash || '#dashboard';
+    const publicRoutes = new Set(['#login', '#register', '#verify', '#forgot', '#reset']);
 
     // Check session on every navigation (server-side check, not localStorage)
     const loggedIn = await checkAuth();
 
-    if (!loggedIn && route !== '#login') {
+    if (!loggedIn && !publicRoutes.has(route)) {
       window.location.hash = '#login';
       showLoginPage();
       return;
@@ -728,11 +1187,21 @@ document.addEventListener('DOMContentLoaded', () => {
       link.classList.toggle('active', link.getAttribute('href') === route);
     });
 
-    if (route === '#login')    showLoginPage();
+    contentArea.classList.remove('page-enter');
+    // Force reflow so animation restarts on route change.
+    void contentArea.offsetWidth;
+    contentArea.classList.add('page-enter');
+
+    if (route === '#login')         showLoginPage();
+    else if (route === '#register') showRegisterPage();
+    else if (route === '#verify')   showVerifyPage();
+    else if (route === '#forgot')   showForgotPasswordPage();
+    else if (route === '#reset')    showResetPasswordPage();
     else if (route === '#dashboard') loadDashboard();
     else if (route === '#profile')   loadProfile();
     else if (route === '#alumni')    loadAlumni();
     else if (route === '#charts')    loadCharts();
+    else if (route === '#bidding')   loadBidding();
     else if (route === '#api-keys')  loadUsageLogs();
     else if (route === '#logout')    handleLogout();
     else                             loadDashboard();

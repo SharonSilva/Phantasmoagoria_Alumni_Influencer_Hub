@@ -110,4 +110,22 @@ module.exports = {
       res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
     }
   },
+
+  /**
+   * GET /api-keys/endpointStats → endpoint usage statistics
+   */
+  endpointStats: async function(req, res) {
+    try {
+      if (!req.session?.authToken) {
+        return res.status(401).json({ success: false, error: 'Not authenticated' });
+      }
+      const response = await axios.get(`${API_BASE}/usage/endpoints`, {
+        headers: buildHeaders(req.session),
+      });
+      res.json({ success: true, data: response.data });
+    } catch (error) {
+      const status = error.response?.status || 500;
+      res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
+    }
+  },
 };

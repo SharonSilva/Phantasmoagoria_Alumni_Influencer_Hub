@@ -71,6 +71,10 @@ app.use(function(req, res, next) {
     '/auth/login',
     '/auth/check',
     '/auth/logout', // logout handles its own session check
+    '/auth/register',
+    '/auth/verify',
+    '/auth/forgotPassword',
+    '/auth/resetPassword',
   ];
   const isPublic = publicPaths.some(p => req.path === p || req.path.startsWith('/public/'));
 

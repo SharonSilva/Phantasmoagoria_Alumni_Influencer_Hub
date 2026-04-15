@@ -65,6 +65,22 @@ module.exports = function(parent, options) {
           method = 'post';
           url = '/' + controllerName + '/login';
           break;
+        case 'register':
+          method = 'post';
+          url = '/' + controllerName + '/register';
+          break;
+        case 'forgotPassword':
+          method = 'post';
+          url = '/' + controllerName + '/forgotPassword';
+          break;
+        case 'resetPassword':
+          method = 'post';
+          url = '/' + controllerName + '/resetPassword';
+          break;
+        case 'verify':
+          method = 'get';
+          url = '/' + controllerName + '/verify';
+          break;
         case 'logout':
           method = 'post';
           url = '/' + controllerName + '/logout';
@@ -92,6 +108,14 @@ module.exports = function(parent, options) {
         case 'usage':
           method = 'get';
           url = '/' + controllerName + '/usage';
+          break;
+        case 'tomorrow':
+        case 'status':
+        case 'monthly':
+        case 'history':
+        case 'endpointStats':
+          method = 'get';
+          url = '/' + controllerName + '/' + key;
           break;
 
         default:
