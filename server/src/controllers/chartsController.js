@@ -7,6 +7,19 @@ const { db } = require('../db');
 const User = require('../models/User');
 
 class ChartsController {
+  static calcPercentages(values) {
+    const total = values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+    if (!total) return values.map(() => 0);
+    return values.map(v => Number((((Number(v) || 0) / total) * 100).toFixed(1)));
+  }
+
+  static buildInsightBadges(percentages) {
+    return percentages.map(pct => {
+      if (pct >= 40) return 'critical';
+      if (pct >= 20) return 'significant';
+      return 'emerging';
+    });
+  }
   /**
    * Skills gap analysis
    * GET /api/charts/skills-gap
@@ -22,11 +35,15 @@ class ChartsController {
 
       const labels = Object.keys(skills);
       const data = Object.values(skills);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'bar',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Number of Certifications',
           data,
@@ -56,11 +73,15 @@ class ChartsController {
 
       const years = Object.keys(trendsByYear).sort();
       const counts = years.map(y => trendsByYear[y]);
+      const percentages = ChartsController.calcPercentages(counts);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'line',
         labels: years,
+        percentages,
+        insights,
         datasets: [{
           label: 'Employment Starts by Year',
           data: counts,
@@ -89,6 +110,8 @@ class ChartsController {
 
       const labels = Object.keys(industries);
       const data = Object.values(industries);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
       const colors = [
         'rgba(255, 99, 132, 0.5)',
         'rgba(54, 162, 235, 0.5)',
@@ -104,6 +127,8 @@ class ChartsController {
         success: true,
         type: 'doughnut',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Alumni by Industry',
           data,
@@ -135,11 +160,15 @@ class ChartsController {
 
       const labels = sorted.map(c => c[0]);
       const data = sorted.map(c => c[1]);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'radar',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Certifications Held',
           data,
@@ -168,11 +197,15 @@ class ChartsController {
 
       const labels = Object.keys(programmes);
       const data = Object.values(programmes);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'bar',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Alumni by Programme',
           data,
@@ -204,11 +237,15 @@ class ChartsController {
 
       const labels = sorted.map(y => y[0].toString());
       const data = sorted.map(y => y[1]);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'line',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Alumni by Graduation Year',
           data,
@@ -239,11 +276,15 @@ class ChartsController {
       const bidsPerDay = last7Days.map(day => 
         db.bids.filter(b => b.bidDate === day).length
       );
+      const percentages = ChartsController.calcPercentages(bidsPerDay);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'line',
         labels: last7Days,
+        percentages,
+        insights,
         datasets: [{
           label: 'Daily Bids (Last 7 Days)',
           data: bidsPerDay,
@@ -274,11 +315,15 @@ class ChartsController {
 
       const labels = Object.keys(sponsorStats);
       const data = Object.values(sponsorStats);
+      const percentages = ChartsController.calcPercentages(data);
+      const insights = ChartsController.buildInsightBadges(percentages);
 
       res.json({
         success: true,
         type: 'doughnut',
         labels,
+        percentages,
+        insights,
         datasets: [{
           label: 'Sponsorship Amount by Organization',
           data,

@@ -46,7 +46,7 @@ function respondToOffer(req, res) {
   if (offer.status !== 'pending') return res.status(400).json({ success: false, message: 'Offer is no longer pending' });
   offer.status      = req.body.decision;
   offer.respondedAt = new Date().toISOString();
-  if (offer.status === 'accepted') profile.walletBalance += offer.offerAmount;
+  if (offer.status === 'accepted') offer.paymentStatus = 'pending_win';
   res.json({ success: true, data: offer });
 }
 

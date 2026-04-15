@@ -1,8 +1,15 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { db } = require('../db');
+const { db, query } = require('../db');
+const Session = require('../models/Session');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'eastminster-alumni-secret-changeme';
+const JWT_SECRET = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  return 'eastminster-alumni-secret-changeme';
+})();
 
 // CSRF Token Generation & Validation
 const csrfTokens = new Map(); // userId → token
@@ -33,11 +40,20 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    const user = db.users.find(u => u.id === payload.userId);
+    if (!payload.tokenId) {
+      return res.status(401).json({ success: false, message: 'Invalid session token' });
+    }
+    const session = Session.findActiveByTokenId(payload.tokenId);
+    if (!session) {
+      return res.status(401).json({ success: false, message: 'Session is expired or revoked' });
+    }
+    const user = query.getUserById(payload.userId);
     if (!user) {
       return res.status(401).json({ success: false, message: 'Token valid but user not found' });
     }
+    Session.touch(payload.tokenId);
     req.user = user;
+    req.auth = payload;
     next();
   } catch (err) {
     return res.status(401).json({
@@ -69,7 +85,7 @@ function authenticateKey(requiredScopes = []) {
       return res.status(401).json({ success: false, message: 'Missing X-API-Key header' });
     }
 
-    const apiKey = db.apiKeys.find(k => k.key === key);
+    const apiKey = query.getApiKeyByKey(key);
     if (!apiKey) {
       return res.status(401).json({ success: false, message: 'Invalid API key' });
     }

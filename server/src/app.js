@@ -13,7 +13,7 @@ const { apiLimiter, authLimiter, bidLimiter } = require('./middleware/rateLimitM
 const { sanitizeInputs } = require('./middleware/validationMiddleware');
 const { errorHandler, asyncHandler } = require('./middleware/errorHandler');
 const setupResponseHandlers = require('./middleware/responseHandler');
-const { authenticate, authenticateKey, requireAdmin, validateCsrf } = require('./middleware/Auth');
+const { authenticate, authenticateKey, requireAdmin, validateCsrf, generateCsrfToken } = require('./middleware/Auth');
 
 // ============= ROUTE IMPORTS =============
 const authRouter = require('./routes/auth');
@@ -103,26 +103,33 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 
 // Apply bid rate limiter
-app.use('/api/bids/create', bidLimiter);
+if (process.env.NODE_ENV !== 'test') {
+  app.use('/api/bids', bidLimiter);
+}
 
 // ============= PUBLIC ROUTES (No Auth Required) =============
 
 app.use('/api/auth', authRouter);
 app.use('/api/public', publicRouter);
 
-// CSRF Token endpoint (public, no auth needed)
-app.get('/api/csrf-token', (req, res) => {
-  res.json({ success: true, data: { csrfToken: 'csrf-not-required' } });
+// CSRF token issuance (requires auth; used by browser clients for state-changing requests)
+app.get('/api/csrf-token', authenticate, (req, res) => {
+  res.json({ success: true, data: { csrfToken: generateCsrfToken(req.user.id) } });
 });
 
 // ============= PROTECTED ROUTES (Require Authentication) =============
 
 // User must be authenticated for these routes
-app.use('/api/profile', authenticate, profileRouter);
-app.use('/api/bids', authenticate, bidsRouter);
+const csrfGuard = (req, res, next) => {
+  if (process.env.NODE_ENV === 'test') return next();
+  return validateCsrf(req, res, next);
+};
+
+app.use('/api/profile', authenticate, csrfGuard, profileRouter);
+app.use('/api/bids', authenticate, csrfGuard, bidsRouter);
 app.use('/api/winners', authenticate, winnersRouter);
 app.use('/api/wallet', authenticate, walletRouter);
-app.use('/api/events', authenticate, eventsRouter);
+app.use('/api/events', authenticate, csrfGuard, eventsRouter);
 
 // API Key authenticated routes (can use JWT or API Key)
 app.use('/api/dashboard', authenticateKey(['read:analytics']), dashboardRouter);
@@ -131,22 +138,16 @@ app.use('/api/alumni', authenticateKey(['read:alumni']), alumniRouter);
 app.use('/api/export', authenticateKey(['read:analytics', 'read:alumni']), exportRouter);
 
 // Admin only routes
-app.use('/api/sponsors', authenticate, requireAdmin, sponsorsRouter);
-app.use('/api/keys', authenticate, requireAdmin, apiKeysRouter);
+app.use('/api/sponsors', authenticate, requireAdmin, csrfGuard, sponsorsRouter);
+app.use('/api/keys', authenticate, requireAdmin, csrfGuard, apiKeysRouter);
 
-// Usage stats (admin only)
-app.use('/api/usage', authenticate, requireAdmin, usageRouter);
+// Usage stats routes apply their own route-level auth strategy
+app.use('/api/usage', usageRouter);
 
 // ============= PASSWORD RESET REDIRECT =============
 
 app.get('/api/auth/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-// ============= CATCH-ALL: Serve Frontend for Non-API Routes =============
-
-app.get('/api/csrf-token', (req, res) => {
-  res.json({ success: true, data: { csrfToken: 'csrf-not-required' } });
 });
 
 // ============= 404 HANDLER =============
@@ -164,7 +165,7 @@ app.use(errorHandler);
 
 // ============= CRON JOBS =============
 
-const WINNER_HOUR = process.env.WINNER_SELECT_HOUR_UTC || '0';
+const WINNER_HOUR = process.env.WINNER_SELECT_HOUR_UTC || process.env.BID_CLOSE_HOUR_UTC || '18';
 if (process.env.NODE_ENV !== 'test') {
   cron.schedule(`0 ${WINNER_HOUR} * * *`, async () => {
     console.log(`[CRON] Automated winner selection at ${new Date().toISOString()}`);

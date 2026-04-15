@@ -1,84 +1,81 @@
-'use strict'
-
-/**
- * Alumni Controller
- * View, filter, and search alumni profiles
- */
+'use strict';
 
 const axios = require('axios');
-
 const API_BASE = process.env.BACKEND_URL || 'http://localhost:3000/api';
+
+// Build auth headers for backend requests.
+// BUG FIX: Must include X-API-Key with analytics-scoped key (read:alumni).
+// The mobile AR key (east_mobile_v2_def456uvw) only has read:alumni_of_day — wrong scope.
+function buildHeaders(session) {
+  const analyticsKey = process.env.ANALYTICS_API_KEY || 'east_analytics_dashboard_k4';
+  return {
+    'Authorization': session.authToken ? `Bearer ${session.authToken}` : '',
+    'X-API-Key': analyticsKey, // must have read:alumni scope
+    'Content-Type': 'application/json',
+  };
+}
 
 module.exports = {
   name: 'alumni',
 
   /**
-   * GET /alumnis → Fetch and return filtered alumni data
+   * GET /alumnis → Fetch filtered alumni list from backend
    */
   list: async function(req, res) {
     try {
-      const token = req.session.authToken;
+      const { programme, year, industry, search, page = 1, limit = 20 } = req.query;
 
-      // Get filter parameters from query
-      const { programme, year, industry, search } = req.query;
-
-      // Call backend API
       const response = await axios.get(`${API_BASE}/public/alumni`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        params: { programme, year, industry, search }
+        headers: buildHeaders(req.session),
+        params: { programme, graduationYear: year, industry, search, page, limit },
       });
 
-      // Transform data for frontend
-      const alumni = response.data.map(profile => ({
-        id: profile.userId,
-        name: profile.name,
-        programme: profile.programme,
-        graduationYear: profile.graduationYear,
-        currentRole: profile.currentRole,
-        currentEmployer: profile.currentEmployer,
-        industry: profile.industry || 'Unknown',
-        bio: profile.bio,
-        photoUrl: profile.photoUrl,
-        linkedInUrl: profile.linkedInUrl,
-        certifications: profile.certifications || [],
-        degrees: profile.degrees || []
+      // BUG FIX: backend wraps in { success, data, meta } — unwrap safely
+      const raw = response.data.data || response.data;
+      const alumni = (Array.isArray(raw) ? raw : []).map(a => ({
+        id:              a.id || a.userId,
+        name:            a.name,
+        programme:       a.profile?.programme    || a.programme    || 'Unknown',
+        graduationYear:  a.profile?.graduationYear || a.graduationYear,
+        currentRole:     a.profile?.currentRole  || a.currentRole  || 'N/A',
+        currentEmployer: a.profile?.currentEmployer || a.currentEmployer || 'N/A',
+        industry:        a.profile?.industry     || a.industry     || 'Unknown',
+        bio:             a.profile?.bio          || a.bio,
+        photoUrl:        a.profile?.photoUrl     || a.photoUrl,
+        linkedInUrl:     a.profile?.linkedInUrl  || a.linkedInUrl,
+        certifications:  a.profile?.certifications || a.certifications || [],
+        degrees:         a.profile?.degrees      || a.degrees      || [],
       }));
 
       res.json({
         success: true,
         count: alumni.length,
+        pagination: response.data.meta || {},
         data: alumni,
-        filters: { programme, year, industry, search }
+        filters: { programme, year, industry, search },
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      const status = error.response?.status || 500;
+      res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
     }
   },
 
   /**
-   * GET /alumni/:alumni_id → View single alumni profile
+   * GET /alumni/:alumni_id → Single alumni profile
    */
   show: async function(req, res) {
     try {
       const alumniId = req.params.alumni_id;
-      const token = req.session.authToken;
 
       const response = await axios.get(`${API_BASE}/public/alumni/${alumniId}`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        headers: buildHeaders(req.session),
       });
 
-      res.json({
-        success: true,
-        data: response.data
-      });
+      const raw = response.data.data || response.data;
+      res.json({ success: true, data: raw });
     } catch (error) {
-      res.status(404).json({
-        success: false,
-        error: 'Alumni not found'
-      });
+      const status = error.response?.status || 404;
+      res.status(status).json({ success: false, error: 'Alumni not found' });
     }
-  }
+  },
 };

@@ -1,8 +1,8 @@
-const { db, today } = require('../db');
+const { db, today, query } = require('../db');
 const Profile       = require('../models/Profile');
 
 function getToday(req, res) {
-  const winner = db.winners.find(w => w.displayDate === today());
+  const winner = query.getWinnerByDisplayDate(today());
   if (!winner) {
     return res.json({ success: true, data: null, message: 'No Alumni of the Day today yet.' });
   }

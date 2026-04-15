@@ -67,9 +67,10 @@ function placeBid(req, res) {
 
   //Wallet check 
   const profile = Profile.findByUserId(req.user.id);
+  const available = Bid.getAvailableBidBalance(req.user.id);
   const amount  = parseFloat(req.body.amount);
-  if (!profile || profile.walletBalance < amount) {
-    return res.status(400).json({ success: false, message: `Insufficient wallet balance. Available: £${profile?.walletBalance ?? 0}` });
+  if (!profile || available < amount) {
+    return res.status(400).json({ success: false, message: `Insufficient bid capacity. Available: £${available}` });
   }
 
   const newBid = Bid.place(req.user.id, amount);  //only reaches here if all pass 
@@ -109,8 +110,9 @@ function updateBid(req, res) {
   }
 
   const profile = Profile.findByUserId(req.user.id);
-  if (!profile || profile.walletBalance < newAmount) {
-    return res.status(400).json({ success: false, message: `Insufficient balance. Available: £${profile?.walletBalance ?? 0}` });
+  const available = Bid.getAvailableBidBalance(req.user.id);
+  if (!profile || available < newAmount) {
+    return res.status(400).json({ success: false, message: `Insufficient bid capacity. Available: £${available}` });
   }
 
   const updated = Bid.increase(bid.id, newAmount);

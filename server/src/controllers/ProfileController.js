@@ -77,6 +77,7 @@ function subResourceController(collectionKey, label) {
     },
 
     update(req, res) {
+      if (!handleValidation(req, res)) return;
       const profile = Profile.findByUserId(req.user.id);
       if (!profile) return res.status(404).json({ success: false, message: 'Profile not found' });
       const updated = Profile.updateSubResource(collectionKey, req.params.itemId, profile.id, req.body);

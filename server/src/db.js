@@ -5,6 +5,7 @@
  
  // Collections:
  //   users            – Auth credentials + roles
+//   sessions         – Active JWT-backed server sessions
  //   emailTokens      – One-time email verification tokens
  //   passwordResets   – One-time password reset tokens
  //   profiles         – Core alumni profile (1-to-1 with users)
@@ -42,6 +43,7 @@ function dateStr(daysOffset = 0) {
 // Collections 
 const db = {
   users:             [],
+  sessions:          [],   // { id, userId, tokenId, createdAt, expiresAt, lastSeenAt, revokedAt }
   emailTokens:       [],   // { id, userId, token, expiresAt, used }
   passwordResets:    [],   // { id, userId, token, expiresAt, used }
   profiles:          [],   // core profile data
@@ -58,6 +60,133 @@ const db = {
   eventAttendees:    [],
   apiKeys:           [],   // { id, name, key, ownerId, scopes, active, createdAt, lastUsedAt }
   apiUsageLogs:      [],   // { id, apiKeyId, endpoint, method, timestamp, statusCode }
+};
+
+// In-memory indexes for faster lookups on hot paths.
+const indexes = {
+  usersById: new Map(),
+  usersByEmail: new Map(),
+  profilesById: new Map(),
+  profilesByUserId: new Map(),
+  bidsById: new Map(),
+  bidsByUserId: new Map(),         // userId -> bid[]
+  bidsByDate: new Map(),           // bidDate -> bid[]
+  winnersByDate: new Map(),        // displayDate -> winner
+  winnersByUser: new Map(),        // userId -> winner[]
+  apiKeysById: new Map(),
+  apiKeysByKey: new Map(),
+};
+
+function rebuildIndexes() {
+  indexes.usersById.clear();
+  indexes.usersByEmail.clear();
+  db.users.forEach(u => {
+    indexes.usersById.set(u.id, u);
+    indexes.usersByEmail.set(u.email, u);
+  });
+
+  indexes.profilesById.clear();
+  indexes.profilesByUserId.clear();
+  db.profiles.forEach(p => {
+    indexes.profilesById.set(p.id, p);
+    indexes.profilesByUserId.set(p.userId, p);
+  });
+
+  indexes.bidsById.clear();
+  indexes.bidsByUserId.clear();
+  indexes.bidsByDate.clear();
+  db.bids.forEach(b => {
+    indexes.bidsById.set(b.id, b);
+    if (!indexes.bidsByUserId.has(b.userId)) indexes.bidsByUserId.set(b.userId, []);
+    indexes.bidsByUserId.get(b.userId).push(b);
+    if (!indexes.bidsByDate.has(b.bidDate)) indexes.bidsByDate.set(b.bidDate, []);
+    indexes.bidsByDate.get(b.bidDate).push(b);
+  });
+
+  indexes.winnersByDate.clear();
+  indexes.winnersByUser.clear();
+  db.winners.forEach(w => {
+    indexes.winnersByDate.set(w.displayDate, w);
+    if (!indexes.winnersByUser.has(w.userId)) indexes.winnersByUser.set(w.userId, []);
+    indexes.winnersByUser.get(w.userId).push(w);
+  });
+
+  indexes.apiKeysById.clear();
+  indexes.apiKeysByKey.clear();
+  db.apiKeys.forEach(k => {
+    indexes.apiKeysById.set(k.id, k);
+    indexes.apiKeysByKey.set(k.key, k);
+  });
+}
+
+function addUser(user) {
+  db.users.push(user);
+  indexes.usersById.set(user.id, user);
+  indexes.usersByEmail.set(user.email, user);
+}
+
+function addProfile(profile) {
+  db.profiles.push(profile);
+  indexes.profilesById.set(profile.id, profile);
+  indexes.profilesByUserId.set(profile.userId, profile);
+}
+
+function addBid(bid) {
+  db.bids.push(bid);
+  indexes.bidsById.set(bid.id, bid);
+  if (!indexes.bidsByUserId.has(bid.userId)) indexes.bidsByUserId.set(bid.userId, []);
+  indexes.bidsByUserId.get(bid.userId).push(bid);
+  if (!indexes.bidsByDate.has(bid.bidDate)) indexes.bidsByDate.set(bid.bidDate, []);
+  indexes.bidsByDate.get(bid.bidDate).push(bid);
+}
+
+function addWinner(winner) {
+  db.winners.push(winner);
+  indexes.winnersByDate.set(winner.displayDate, winner);
+  if (!indexes.winnersByUser.has(winner.userId)) indexes.winnersByUser.set(winner.userId, []);
+  indexes.winnersByUser.get(winner.userId).push(winner);
+}
+
+function addApiKey(apiKey) {
+  db.apiKeys.push(apiKey);
+  indexes.apiKeysById.set(apiKey.id, apiKey);
+  indexes.apiKeysByKey.set(apiKey.key, apiKey);
+}
+
+const query = {
+  getUserById(userId) {
+    return indexes.usersById.get(userId) || null;
+  },
+  getUserByEmail(email) {
+    return indexes.usersByEmail.get(email) || null;
+  },
+  getProfileById(profileId) {
+    return indexes.profilesById.get(profileId) || null;
+  },
+  getProfileByUserId(userId) {
+    return indexes.profilesByUserId.get(userId) || null;
+  },
+  getBidById(bidId) {
+    return indexes.bidsById.get(bidId) || null;
+  },
+  getBidsByUserId(userId) {
+    return indexes.bidsByUserId.get(userId) || [];
+  },
+  getBidsByDate(bidDate) {
+    return indexes.bidsByDate.get(bidDate) || [];
+  },
+  getWinnerByDisplayDate(displayDate) {
+    return indexes.winnersByDate.get(displayDate) || null;
+  },
+  getWinnersByUserId(userId) {
+    return indexes.winnersByUser.get(userId) || [];
+  },
+  getApiKeyById(idVal) {
+    return indexes.apiKeysById.get(idVal) || null;
+  },
+  getApiKeyByKey(keyVal) {
+    return indexes.apiKeysByKey.get(keyVal) || null;
+  },
 };
 
 //Seed
@@ -133,10 +262,10 @@ async function seed() {
 
   //  Sponsorships
   db.sponsorships.push(
-    { id: 'sp1', sponsorId: 's1', profileId: 'p1', certificationName: 'AWS Solutions Architect', offerAmount: 200, status: 'accepted', createdAt: dateStr(-5) },
-    { id: 'sp2', sponsorId: 's2', profileId: 'p1', certificationName: 'TensorFlow Developer Certificate', offerAmount: 300, status: 'accepted', createdAt: dateStr(-4) },
-    { id: 'sp3', sponsorId: 's3', profileId: 'p4', certificationName: 'CISSP', offerAmount: 400, status: 'accepted', createdAt: dateStr(-3) },
-    { id: 'sp4', sponsorId: 's4', profileId: 'p4', certificationName: 'OSCP', offerAmount: 350, status: 'accepted', createdAt: dateStr(-3) },
+    { id: 'sp1', sponsorId: 's1', profileId: 'p1', certificationName: 'AWS Solutions Architect', offerAmount: 200, status: 'accepted', createdAt: dateStr(-5), paidOutAt: dateStr(-4) + 'T00:00:00Z' },
+    { id: 'sp2', sponsorId: 's2', profileId: 'p1', certificationName: 'TensorFlow Developer Certificate', offerAmount: 300, status: 'accepted', createdAt: dateStr(-4), paidOutAt: dateStr(-4) + 'T00:00:00Z' },
+    { id: 'sp3', sponsorId: 's3', profileId: 'p4', certificationName: 'CISSP', offerAmount: 400, status: 'accepted', createdAt: dateStr(-3), paidOutAt: dateStr(-2) + 'T00:00:00Z' },
+    { id: 'sp4', sponsorId: 's4', profileId: 'p4', certificationName: 'OSCP', offerAmount: 350, status: 'accepted', createdAt: dateStr(-3), paidOutAt: dateStr(-2) + 'T00:00:00Z' },
     { id: 'sp5', sponsorId: 's1', profileId: 'p3', certificationName: 'AWS Solutions Architect', offerAmount: 150, status: 'pending',  createdAt: dateStr(-1) },
   );
 
@@ -181,8 +310,9 @@ async function seed() {
   // API Keys (developer keys) 
   db.apiKeys.push(
     { id: 'k1', name: 'AR Client (Production)', key: 'east_arkey_prod_abc123xyz', ownerId: 'u7', scopes: ['read:featured'], active: true, createdAt: dateStr(-30), lastUsedAt: dateStr(-1) },
-    { id: 'k2', name: 'Mobile App v2',          key: 'east_mobile_v2_def456uvw', ownerId: 'u7', scopes: ['read:featured', 'read:alumni', 'read:sponsors', 'read:events', 'read:analytics'], active: true, createdAt: dateStr(-15), lastUsedAt: today() },
+    { id: 'k2', name: 'Mobile App v2',          key: 'east_mobile_v2_def456uvw', ownerId: 'u7', scopes: ['read:featured', 'read:alumni', 'read:sponsors', 'read:events'], active: true, createdAt: dateStr(-15), lastUsedAt: today() },
     { id: 'k3', name: 'Revoked Test Key',        key: 'east_revoked_ghi789rst',   ownerId: 'u7', scopes: ['read:featured'], active: false, createdAt: dateStr(-60), lastUsedAt: dateStr(-20) },
+    { id: 'k4', name: 'Analytics Dashboard', key: 'east_analytics_dashboard_k4', ownerId: 'u7', scopes: ['read:alumni', 'read:analytics'], active: true, createdAt: dateStr(-1), lastUsedAt: null },
   );
 
   db.apiUsageLogs.push(
@@ -196,7 +326,7 @@ async function seed() {
     .sort((a, b) => b.amount - a.amount)[0];
 
   if (topBid) {
-    db.winners.push({
+    addWinner({
       id: 'w5',
       userId: topBid.userId,
       displayDate: today(),
@@ -205,7 +335,8 @@ async function seed() {
     });
   }
 
+  rebuildIndexes();
   console.log('  Database seeded');
 }
 
-module.exports = { db, seed, id, today, dateStr };
+module.exports = { db, seed, id, today, dateStr, indexes, rebuildIndexes, addUser, addProfile, addBid, addWinner, addApiKey, query };

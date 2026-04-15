@@ -1,14 +1,15 @@
-const { db, id } = require('../db');
+const xss = require('xss');
+const { db, id, query } = require('../db');
 
 class Profile {
   // Core Profile 
 
   static findByUserId(userId) {
-    return db.profiles.find(p => p.userId === userId) || null;
+    return query.getProfileByUserId(userId);
   }
 
   static findById(profileId) {
-    return db.profiles.find(p => p.id === profileId) || null;
+    return query.getProfileById(profileId);
   }
 
 
@@ -16,8 +17,18 @@ class Profile {
   static update(userId, updates) {
     const profile = Profile.findByUserId(userId);
     if (!profile) return null;
-    const allowed = ['bio', 'linkedInUrl', 'currentRole', 'currentEmployer', 'location', 'graduationYear', 'photoUrl'];
-    allowed.forEach(f => { if (updates[f] !== undefined) profile[f] = updates[f]; }); //{walletBalance: 99999, role: "admin" } silently ignored
+    const allowed = ['bio', 'linkedInUrl', 'currentRole', 'currentEmployer', 'location', 'graduationYear', 'photoUrl','programme',
+'industry'];
+    allowed.forEach(f => {
+  if (updates[f] !== undefined) {
+    // Sanitize only string inputs
+    if (typeof updates[f] === 'string') {
+      profile[f] = xss(updates[f]);
+    } else {
+      profile[f] = updates[f];
+    }
+  }
+});
     Profile.recalculateCompletion(profile);
     return profile;
   }
@@ -63,6 +74,11 @@ class Profile {
     // Generic method to add an item to any sub-resource collection.
 
   static addSubResource(collection, profileId, data) {
+    Object.keys(data).forEach(key => {
+  if (typeof data[key] === 'string') {
+    data[key] = xss(data[key]);
+  }
+});
     const newItem = { id: id(), profileId, ...data, createdAt: new Date().toISOString() };
     db[collection].push(newItem);
     const profile = Profile.findById(profileId);
@@ -77,7 +93,13 @@ class Profile {
     const item = db[collection].find(i => i.id === itemId && i.profileId === profileId);
     if (!item) return null;
     const fields = Object.keys(updates);
-    fields.forEach(f => { if (updates[f] !== undefined) item[f] = updates[f]; });
+    fields.forEach(f => {
+  if (updates[f] !== undefined) {
+    item[f] = typeof updates[f] === 'string'
+      ? xss(updates[f])
+      : updates[f];
+  }
+});
     item.updatedAt = new Date().toISOString();
     return item;
   }

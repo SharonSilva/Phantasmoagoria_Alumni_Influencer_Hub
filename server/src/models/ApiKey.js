@@ -1,5 +1,5 @@
 const crypto   = require('crypto');
-const { db, id } = require('../db');
+const { db, id, addApiKey, query } = require('../db');
 
 class ApiKey {
   static getAll() {
@@ -10,11 +10,11 @@ class ApiKey {
   }
 
   static findById(keyId) {
-    return db.apiKeys.find(k => k.id === keyId) || null;
+    return query.getApiKeyById(keyId);
   }
 
   static findByKey(keyStr) {
-    return db.apiKeys.find(k => k.key === keyStr) || null;
+    return query.getApiKeyByKey(keyStr);
   }
 
   static create({ name, scopes, ownerId }) {
@@ -29,7 +29,7 @@ class ApiKey {
       createdAt:  new Date().toISOString(),
       lastUsedAt: null,
     };
-    db.apiKeys.push(newKey);
+    addApiKey(newKey);
     return newKey;
   }
 
@@ -42,11 +42,16 @@ class ApiKey {
     return key;
   }
 
-  static logUsage(apiKeyId, endpoint, method) {
-    const key = ApiKey.findById(apiKeyId);
-    if (key) key.lastUsedAt = new Date().toISOString();
-    db.apiUsageLogs.push({ id: id(), apiKeyId, endpoint, method, timestamp: new Date().toISOString() });
-  }
+  static logUsage(apiKeyId, endpoint, method, statusCode = 200) {
+  db.apiUsageLogs.push({
+    id: id(),
+    apiKeyId,
+    endpoint,
+    method,
+    statusCode,
+    timestamp: new Date().toISOString()
+  });
+}
 
   static getStats(keyId) {
     const logs = db.apiUsageLogs

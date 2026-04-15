@@ -5,8 +5,8 @@ function getWallet(req, res) {
   if (!profile) return res.status(404).json({ success: false, message: 'Profile not found' });
 
   const credits = db.sponsorships
-    .filter(s => s.profileId === profile.id && s.status === 'accepted')
-    .map(s => ({ type: 'credit', description: `Sponsorship: ${s.certificationName}`, amount: s.offerAmount, date: s.createdAt }));
+    .filter(s => s.profileId === profile.id && s.status === 'accepted' && s.paidOutAt)
+    .map(s => ({ type: 'credit', description: `Sponsorship paid on win: ${s.certificationName}`, amount: s.offerAmount, date: s.paidOutAt }));
 
   const debits = db.bids
     .filter(b => b.userId === req.user.id && b.status === 'won')

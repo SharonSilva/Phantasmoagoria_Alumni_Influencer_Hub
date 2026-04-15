@@ -43,17 +43,22 @@ router.post('/photo', (req, res) => {
 router.get('/completion', ctrl.getCompletion);
 
 // Sub-resource route builder
-function subRoutes(path, collectionKey, label, postValidators) {
+function subRoutes(path, collectionKey, label, postValidators, putValidators) {
   const c = ctrl.subResourceController(collectionKey, label);
   router.get(path,           c.list);
   router.post(path,          postValidators, c.create);
-  router.put(`${path}/:itemId`,    c.update);
+  router.put(`${path}/:itemId`,    putValidators || postValidators, c.update);
   router.delete(`${path}/:itemId`, c.remove);
 }
 
 subRoutes('/degrees', 'degrees', 'Degree', [
   body('title').trim().notEmpty(),
   body('institution').trim().notEmpty(),
+  body('url').optional().isURL(),
+  body('completedDate').optional().isISO8601(),
+], [
+  body('title').optional().trim().notEmpty(),
+  body('institution').optional().trim().notEmpty(),
   body('url').optional().isURL(),
   body('completedDate').optional().isISO8601(),
 ]);
@@ -63,11 +68,21 @@ subRoutes('/certifications', 'certifications', 'Certification', [
   body('issuer').trim().notEmpty(),
   body('url').optional().isURL(),
   body('completedDate').optional().isISO8601(),
+], [
+  body('name').optional().trim().notEmpty(),
+  body('issuer').optional().trim().notEmpty(),
+  body('url').optional().isURL(),
+  body('completedDate').optional().isISO8601(),
 ]);
 
 subRoutes('/licences', 'licences', 'Licence', [
   body('name').trim().notEmpty(),
   body('awardingBody').trim().notEmpty(),
+  body('url').optional().isURL(),
+  body('completedDate').optional().isISO8601(),
+], [
+  body('name').optional().trim().notEmpty(),
+  body('awardingBody').optional().trim().notEmpty(),
   body('url').optional().isURL(),
   body('completedDate').optional().isISO8601(),
 ]);
@@ -77,12 +92,23 @@ subRoutes('/courses', 'courses', 'Course', [
   body('provider').trim().notEmpty(),
   body('url').optional().isURL(),
   body('completedDate').optional().isISO8601(),
+], [
+  body('name').optional().trim().notEmpty(),
+  body('provider').optional().trim().notEmpty(),
+  body('url').optional().isURL(),
+  body('completedDate').optional().isISO8601(),
 ]);
 
 subRoutes('/employment', 'employmentHistory', 'Employment record', [
   body('jobTitle').trim().notEmpty(),
   body('employer').trim().notEmpty(),
   body('startDate').isISO8601(),
+  body('endDate').optional().isISO8601(),
+  body('current').optional().isBoolean(),
+], [
+  body('jobTitle').optional().trim().notEmpty(),
+  body('employer').optional().trim().notEmpty(),
+  body('startDate').optional().isISO8601(),
   body('endDate').optional().isISO8601(),
   body('current').optional().isBoolean(),
 ]);

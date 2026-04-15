@@ -8,54 +8,66 @@ module.exports = {
 
   /**
    * POST /auth/login
-   * Called by your frontend login form
+   * Forwards credentials to backend, stores JWT + CSRF token in session
    */
   login: async function(req, res) {
     try {
       const { email, password } = req.body;
 
-      // 1. Forward credentials to the Backend Server
       const response = await axios.post(`${API_BASE}/auth/login`, { email, password });
 
-      // 2. If backend says OK, save the JWT to the session
       if (response.data.success) {
-        // This is the CRITICAL line that allows other controllers to work
-        req.session.authToken = response.data.data.token;
-        req.session.user = response.data.data.user;
+        const { token, csrfToken, user } = response.data.data;
 
-        return res.json({ 
-          success: true, 
+        // Store JWT and CSRF token server-side in session (never expose JWT to browser JS)
+        req.session.authToken  = token;
+        req.session.csrfToken  = csrfToken;
+        req.session.user       = user;
+
+        return res.json({
+          success: true,
           message: 'Login successful',
-          user: response.data.data.user 
+          // Send csrfToken to client so it can include it on state-changing requests
+          csrfToken,
+          token,
+          user,
         });
       }
+
+      // Should not reach here if backend returns success:false without throwing
+      res.status(401).json({ success: false, error: 'Login failed' });
+
     } catch (error) {
-      // Catch 401 Unauthorized or 500 errors from backend
+      const status  = error.response?.status  || 500;
       const message = error.response?.data?.message || 'Connection to auth server failed';
-      res.status(error.response?.status || 500).json({ 
-        success: false, 
-        error: message 
-      });
+      res.status(status).json({ success: false, error: message });
     }
   },
 
   /**
    * POST /auth/logout
-   * Destroys the session
+   * Properly destroys express-session (req.session = null only works with cookie-session)
+   * BUG FIX: express-session requires req.session.destroy(), not req.session = null
    */
   logout: function(req, res) {
-    req.session = null; // Clears the cookie-session
-    res.json({ success: true, message: 'Logged out successfully' });
+    req.session.destroy(err => {
+      if (err) {
+        console.error('[LOGOUT ERROR]', err);
+        return res.status(500).json({ success: false, error: 'Logout failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ success: true, message: 'Logged out successfully' });
+    });
   },
 
   /**
    * GET /auth/check
-   * Used by the frontend to see if the user is still logged in
+   * Frontend calls this on load to check if session is still valid
    */
   check: function(req, res) {
     if (req.session && req.session.authToken) {
-      return res.json({ loggedIn: true, user: req.session.user });
+      return res.json({ loggedIn: true, user: req.session.user, token: req.session.authToken });
     }
     res.json({ loggedIn: false });
-  }
+  },
 };

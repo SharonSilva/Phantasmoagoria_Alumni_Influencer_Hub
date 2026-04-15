@@ -1,10 +1,12 @@
 const jwt  = require('jsonwebtoken');
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const User  = require('../models/User');
 const Token = require('../models/Token');
+const Session = require('../models/Session');
+const { JWT_SECRET, generateCsrfToken } = require('../middleware/Auth');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 
-const JWT_SECRET     = process.env.JWT_SECRET || 'eastminster-alumni-secret-changeme';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // Helper 
@@ -15,6 +17,18 @@ function handleValidation(req, res) {
     return false;
   }
   return true;
+}
+
+function resolveExpiryDate(expiresIn) {
+  if (typeof expiresIn === 'number') {
+    return new Date(Date.now() + (expiresIn * 1000)).toISOString();
+  }
+  const match = String(expiresIn).trim().match(/^(\d+)([smhd])$/i);
+  if (!match) return new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString();
+  const amount = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  const unitMs = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  return new Date(Date.now() + (amount * unitMs[unit])).toISOString();
 }
 
 // register 
@@ -54,7 +68,7 @@ async function verifyEmail(req, res) {
     return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
   }
 
-  Token.consumeEmailToken(token);
+  await Token.consumeEmailToken(token, record.userId);
   User.markEmailVerified(record.userId);
 
   res.json({ success: true, message: 'Email verified successfully. You can now log in.' });
@@ -77,14 +91,24 @@ async function login(req, res) {
     return res.status(401).json({ success: false, message: 'Email not verified. Please check your inbox for the verification link.' });
   }
 
-  const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-  res.json({ success: true, data: { user: User.toPublic(user), token } });
+  const tokenId = crypto.randomUUID();
+  const token = jwt.sign({ userId: user.id, role: user.role, tokenId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  Session.create({
+    userId: user.id,
+    tokenId,
+    expiresAt: resolveExpiryDate(JWT_EXPIRES_IN),
+  });
+  const csrfToken = generateCsrfToken(user.id);
+  res.json({ success: true, data: { user: User.toPublic(user), token, csrfToken } });
 }
 
 // logout 
 function logout(req, res) {
+  if (process.env.NODE_ENV !== 'test' && req.auth?.tokenId) {
+    Session.revokeByTokenId(req.auth.tokenId);
+  }
   console.log(`[LOGOUT] User ${req.user.id} at ${new Date().toISOString()}`);
-  res.json({ success: true, message: 'Logged out successfully. Please discard your token.' });
+  res.json({ success: true, message: 'Logged out successfully.' });
 }
 
 // forgotPassword 
@@ -115,7 +139,7 @@ async function resetPassword(req, res) {
     return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
   }
 
-  Token.consumeResetToken(token);
+  await Token.consumeResetToken(token, record.userId);
   await User.updatePassword(record.userId, password);
 
   res.json({ success: true, message: 'Password reset successfully. You can now log in.' });

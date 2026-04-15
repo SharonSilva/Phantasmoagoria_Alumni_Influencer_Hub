@@ -1,10 +1,5 @@
 'use strict'
 
-/**
- * Auto-load controllers and generate routes
- * Scans /controllers directory and creates routes based on exported methods
- */
-
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -27,16 +22,12 @@ module.exports = function(parent, options) {
     let method;
     let url;
 
-    // Set view engine if specified
     if (obj.engine) app.set('view engine', obj.engine);
     app.set('views', path.join(__dirname, '..', 'controllers', controllerName, 'views'));
 
-    // Generate routes based on exported methods
     for (let key in obj) {
-      // Skip reserved exports
       if (~['name', 'prefix', 'engine', 'before'].indexOf(key)) continue;
 
-      // Map method names to HTTP methods and URLs
       switch (key) {
         case 'show':
           method = 'get';
@@ -68,8 +59,42 @@ module.exports = function(parent, options) {
           method = 'delete';
           url = '/' + controllerName + '/:' + controllerName + '_id';
           break;
+
+        // Auth actions
+        case 'login':
+          method = 'post';
+          url = '/' + controllerName + '/login';
+          break;
+        case 'logout':
+          method = 'post';
+          url = '/' + controllerName + '/logout';
+          break;
+        case 'check':
+          method = 'get';
+          url = '/' + controllerName + '/check';
+          break;
+
+        // Dashboard sub-routes
+        case 'api':
+          method = 'get';
+          url = '/' + controllerName + '/api';
+          break;
+        case 'alumniStats':
+          method = 'get';
+          url = '/' + controllerName + '/alumniStats';
+          break;
+        case 'biddingAnalytics':
+          method = 'get';
+          url = '/' + controllerName + '/biddingAnalytics';
+          break;
+
+        // API keys usage
+        case 'usage':
+          method = 'get';
+          url = '/' + controllerName + '/usage';
+          break;
+
         default:
-          // Custom actions: GET /<controller>/<action>
           method = 'get';
           url = '/' + controllerName + '/' + key;
           break;
@@ -78,7 +103,6 @@ module.exports = function(parent, options) {
       handler = obj[key];
       url = prefix + url;
 
-      // Setup route with optional before middleware
       if (obj.before) {
         app[method](url, obj.before, handler);
         verbose && console.log('     %s %s -> before -> %s', method.toUpperCase(), url, key);
@@ -88,7 +112,6 @@ module.exports = function(parent, options) {
       }
     }
 
-    // Mount controller app
     parent.use(app);
   });
 };

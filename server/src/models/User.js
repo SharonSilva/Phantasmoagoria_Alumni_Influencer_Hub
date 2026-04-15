@@ -1,13 +1,13 @@
 const bcrypt = require('bcryptjs');
-const { db, id } = require('../db');
+const { db, id, addUser, addProfile, query } = require('../db');
 const SALT_ROUNDS = 12;               //module constant - 12 means 2^12 ehich means 4096 iterations
 
 class User {
   static findById(userId) {
-    return db.users.find(u => u.id === userId) || null;
+    return query.getUserById(userId);
   }
   static findByEmail(email) {
-    return db.users.find(u => u.email === email) || null;
+    return query.getUserByEmail(email);
   }
   //Registration
   static async create({ email, password, name, role = 'alumni' }) {
@@ -21,23 +21,23 @@ class User {
                      emailVerified: false,
                      createdAt: now,
                      updatedAt: now };
-    db.users.push(newUser);
+    addUser(newUser);
     if (role === 'alumni') {
-      db.profiles.push({ id: id(),
-                         userId: newUser.id,
-                         graduationYear: null,
-                         bio: '', 
-                         linkedInUrl: '',
-                         photoUrl: null,
-                         currentRole: '',
-                         currentEmployer: '',
-                         location: '',
-                         walletBalance: 0,
-                         appearanceCount: 0,
-                         appearanceCountMonth: now.slice(0, 7),
-                         isActiveToday: false,
-                         profileCompleted: false,
-                         createdAt: now });
+      addProfile({ id: id(),
+                   userId: newUser.id,
+                   graduationYear: null,
+                   bio: '', 
+                   linkedInUrl: '',
+                   photoUrl: null,
+                   currentRole: '',
+                   currentEmployer: '',
+                   location: '',
+                   walletBalance: 0,
+                   appearanceCount: 0,
+                   appearanceCountMonth: now.slice(0, 7),
+                   isActiveToday: false,
+                   profileCompleted: false,
+                   createdAt: now });
     }
     return newUser;
   }

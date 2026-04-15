@@ -1,6 +1,19 @@
-const { db, today, dateStr } = require('../db');
+const { db, today, dateStr, addBid, addWinner, query } = require('../db');
 
 class Bid {
+  static getPendingSponsorPool(userId) {
+    const profile = db.profiles.find(p => p.userId === userId);
+    if (!profile) return 0;
+    return db.sponsorships
+      .filter(s => s.profileId === profile.id && s.status === 'accepted' && !s.paidOutAt)
+      .reduce((sum, s) => sum + (Number(s.offerAmount) || 0), 0);
+  }
+
+  static getAvailableBidBalance(userId) {
+    const profile = db.profiles.find(p => p.userId === userId);
+    if (!profile) return 0;
+    return (Number(profile.walletBalance) || 0) + Bid.getPendingSponsorPool(userId);
+  }
   /**
    * Place a new bid for today's "Alumni of the Day" auction
    * @param {string} userId - User placing the bid
@@ -17,7 +30,7 @@ class Bid {
       status: 'active',
       submittedAt: new Date().toISOString(),
     };
-    db.bids.push(newBid);
+    addBid(newBid);
     return newBid;
   }
 
@@ -29,7 +42,7 @@ class Bid {
    * @returns {object} Updated bid
    */
   static increase(bidId, newAmount) {
-    const bid = db.bids.find(b => b.id === bidId);
+    const bid = query.getBidById(bidId);
     if (bid) bid.amount = newAmount;
     return bid;
   }
@@ -40,7 +53,7 @@ class Bid {
    * @param {string} bidId - Bid to cancel
    */
   static cancel(bidId) {
-    const bid = db.bids.find(b => b.id === bidId);
+    const bid = query.getBidById(bidId);
     if (bid) bid.status = 'cancelled';
   }
 
@@ -51,7 +64,7 @@ class Bid {
    * @returns {object|null} User's today bid or null
    */
   static findTodayBidByUser(userId) {
-    return db.bids.find(b => b.userId === userId && b.bidDate === today() && b.status === 'active');
+    return query.getBidsByUserId(userId).find(b => b.bidDate === today() && b.status === 'active') || null;
   }
 
   /**
@@ -60,7 +73,7 @@ class Bid {
    * @returns {object|null} Bid or null
    */
   static findById(bidId) {
-    return db.bids.find(b => b.id === bidId);
+    return query.getBidById(bidId);
   }
 
   /**
@@ -83,12 +96,12 @@ class Bid {
    * @returns {boolean} true if user has highest active bid
    */
   static isCurrentlyWinning(userId) {
-    const userBid = db.bids.find(b => b.userId === userId && b.bidDate === today() && b.status === 'active');
+    const userBid = query.getBidsByUserId(userId).find(b => b.bidDate === today() && b.status === 'active');
     if (!userBid) return false;
 
     // Find highest active bid for today
-    const highest = db.bids
-      .filter(b => b.bidDate === today() && b.status === 'active')
+    const highest = query.getBidsByDate(today())
+      .filter(b => b.status === 'active')
       .sort((a, b) => b.amount - a.amount)[0];
 
     return highest && highest.userId === userId;
@@ -102,9 +115,7 @@ class Bid {
    */
   static monthlyWinCount(userId) {
     const ym = new Date().toISOString().slice(0, 7); // "2026-04"
-    return db.winners.filter(
-      w => w.userId === userId && w.displayDate.startsWith(ym)
-    ).length;
+    return query.getWinnersByUserId(userId).filter(w => w.displayDate.startsWith(ym)).length;
   }
 
   /**
@@ -144,8 +155,7 @@ class Bid {
    * @returns {array} All bids by user, sorted by date desc
    */
   static getUserBidHistory(userId) {
-    return db.bids
-      .filter(b => b.userId === userId)
+    return query.getBidsByUserId(userId)
       .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
   }
 
@@ -154,7 +164,7 @@ class Bid {
    * Called daily at configured UTC hour (default 00:00)
    * 
    * Algorithm:
-   * 1. Get all active bids from yesterday (bidDate = yesterday)
+   * 1. Get all active bids from today (bidDate = today)
    * 2. Filter out users who hit monthly limit
    * 3. Sort by: amount DESC, then submittedAt ASC (tiebreak)
    * 4. Select top bidder as winner
@@ -164,11 +174,11 @@ class Bid {
    * @returns {object} { winner, loserIds, resolved }
    */
   static resolveAuction() {
-    const yesterday = dateStr(-1);
+    const bidDay = today();
     
-    // Get all active bids from yesterday
+    // Get all active bids from today's window
     let activeBids = db.bids.filter(b => 
-      b.bidDate === yesterday && b.status === 'active'
+      b.bidDate === bidDay && b.status === 'active'
     );
 
     if (activeBids.length === 0) {
@@ -213,11 +223,30 @@ class Bid {
     // Create winner record for tomorrow's display
     const tomorrow = dateStr(1);
     const { id } = require('../db');
-    db.winners.push({
+    const winnerProfile = db.profiles.find(p => p.userId === winner.userId);
+
+    // Sponsor payout happens only if alumnus wins and is displayed.
+    let sponsorPayout = 0;
+    if (winnerProfile) {
+      db.sponsorships
+        .filter(s => s.profileId === winnerProfile.id && s.status === 'accepted' && !s.paidOutAt)
+        .forEach(s => {
+          sponsorPayout += (Number(s.offerAmount) || 0);
+          s.paidOutAt = new Date().toISOString();
+          s.paidOutForDisplayDate = tomorrow;
+        });
+      winnerProfile.walletBalance = (Number(winnerProfile.walletBalance) || 0) + sponsorPayout - winner.amount;
+      winnerProfile.appearanceCount = (Number(winnerProfile.appearanceCount) || 0) + 1;
+      winnerProfile.appearanceCountMonth = tomorrow.slice(0, 7);
+      winnerProfile.nextFeatureDate = tomorrow;
+    }
+
+    addWinner({
       id: id(),
       userId: winner.userId,
       displayDate: tomorrow,
       bidAmount: winner.amount,
+      sponsorPayout,
       createdAt: new Date().toISOString(),
     });
 
@@ -226,6 +255,7 @@ class Bid {
         userId: winner.userId,
         displayDate: tomorrow,
         bidAmount: winner.amount,
+        sponsorPayout,
       },
       loserIds,
       resolved: activeBids.length,

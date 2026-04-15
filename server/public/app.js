@@ -269,7 +269,7 @@ function renderSubList(resource, items, renderFn) {
 }
 
 function delBtn(resource, itemId) {
-  return '<button class="btn-del btn-sm" onclick="deleteSubResource(\'' + resource + '\',\'' + itemId + '\')">Remove</button>';
+  return '<button type="button" class="btn-del btn-sm" data-resource="' + escapeHtml(resource) + '" data-item-id="' + escapeHtml(itemId) + '">Remove</button>';
 }
 
 function renderDegree(resource, d) {
@@ -328,6 +328,16 @@ window.deleteSubResource = function (resource, itemId) {
     .then(function () { toast('Removed.', ''); loadProfile(); })
     .catch(function (e) { toast(e.message, 'error'); });
 };
+
+// Delegate clicks for dynamic delete buttons in profile lists.
+document.addEventListener('click', function (event) {
+  var btn = event.target.closest('.btn-del');
+  if (!btn) return;
+  var resource = btn.getAttribute('data-resource');
+  var itemId = btn.getAttribute('data-item-id');
+  if (!resource || !itemId) return;
+  window.deleteSubResource(resource, itemId);
+});
 
 // Sub-resource Add Buttons 
 id('btn-add-degree').addEventListener('click', function () {

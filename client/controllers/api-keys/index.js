@@ -1,106 +1,113 @@
-'use strict'
-
-/**
- * API Keys Controller
- * Manage API keys, permissions, and usage statistics
- */
+'use strict';
 
 const axios = require('axios');
-
 const API_BASE = process.env.BACKEND_URL || 'http://localhost:3000/api';
+
+function buildHeaders(session) {
+  const analyticsKey = process.env.ANALYTICS_API_KEY || 'east_analytics_dashboard_k4';
+  const headers = {
+    'Authorization': session.authToken ? `Bearer ${session.authToken}` : '',
+    'X-API-Key': analyticsKey,
+    'Content-Type': 'application/json',
+  };
+  if (session.csrfToken) headers['X-CSRF-Token'] = session.csrfToken;
+  return headers;
+}
 
 module.exports = {
   name: 'api-keys',
 
   /**
-   * GET /api-keyss → List all API keys
+   * GET /api-keyss → List all API keys (admin only)
    */
   list: async function(req, res) {
     try {
-      const token = req.session.authToken;
-      if (!token) {
+      if (!req.session?.authToken) {
         return res.status(401).json({ success: false, error: 'Not authenticated' });
       }
 
       const response = await axios.get(`${API_BASE}/keys`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: buildHeaders(req.session),
       });
 
-      res.json({
-        success: true,
-        data: response.data,
-        timestamp: new Date().toISOString()
-      });
+      const data = response.data.data || response.data;
+      res.json({ success: true, data, timestamp: new Date().toISOString() });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      const status = error.response?.status || 500;
+      res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
     }
   },
 
   /**
-   * GET /api-keys/:api_keys_id → View single API key details
+   * GET /api-keys/:api_keys_id → Single API key detail
+   * BUG FIX: response.data.data was double-unwrapping; backend returns { success, data: {...stats} }
    */
   show: async function(req, res) {
     try {
-      const token = req.session.authToken;
-      const keyId = req.params.api_keys_id; // The ID coming from your Client URL
+      if (!req.session?.authToken) {
+        return res.status(401).json({ success: false, error: 'Not authenticated' });
+      }
 
-      const response = await axios.get(`${API_BASE}/keys/${keyId}`, { // Backend expects keyId
-        headers: { 'Authorization': `Bearer ${token}` }
+      const keyId = req.params.api_keys_id;
+      const response = await axios.get(`${API_BASE}/keys/${keyId}`, {
+        headers: buildHeaders(req.session),
       });
 
-      res.json({ success: true, data: response.data.data });
+      // Backend returns { success: true, data: { ...key, ...stats } } — one level of unwrap
+      const data = response.data.data || response.data;
+      res.json({ success: true, data });
     } catch (error) {
-      res.status(404).json({ success: false, error: 'API key not found' });
+      const status = error.response?.status || 404;
+      res.status(status).json({ success: false, error: 'API key not found' });
     }
-},
+  },
 
   /**
-   * POST /api-keys → Create new API key
+   * POST /api-keys → Create a new API key (admin only)
    */
   create: async function(req, res) {
     try {
-      const token = req.session.authToken;
-      if (!token) {
+      if (!req.session?.authToken) {
         return res.status(401).json({ success: false, error: 'Not authenticated' });
       }
 
       const { name, scopes } = req.body;
-
-      const response = await axios.post(`${API_BASE}/keys`, 
+      const response = await axios.post(
+        `${API_BASE}/keys`,
         { name, scopes },
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        { headers: buildHeaders(req.session) },
       );
 
       res.json({
         success: true,
-        message: 'API key created successfully',
-        data: response.data
+        message: 'API key created. Save it — it will not be shown in full again.',
+        data: response.data.data || response.data,
       });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const status = error.response?.status || 400;
+      res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
     }
   },
 
   /**
-   * GET /api/keys/usage → Get API usage statistics
+   * GET /api-keys/usage → Usage statistics for all keys
+   * BUG FIX: was calling /keys/usage/stats which doesn't exist.
+   * Correct server route is GET /api/usage/stats (usageRouter mounted at /usage).
    */
   usage: async function(req, res) {
     try {
-      const token = req.session.authToken;
-      if (!token) {
+      if (!req.session?.authToken) {
         return res.status(401).json({ success: false, error: 'Not authenticated' });
       }
 
-      const response = await axios.get(`${API_BASE}/keys/usage/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await axios.get(`${API_BASE}/usage/stats`, {
+        headers: buildHeaders(req.session),
       });
 
-      res.json({
-        success: true,
-        data: response.data
-      });
+      res.json({ success: true, data: response.data.stats || response.data });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      const status = error.response?.status || 500;
+      res.status(status).json({ success: false, error: error.response?.data?.message || error.message });
     }
-  }
+  },
 };
