@@ -463,104 +463,178 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadProfile() {
     contentArea.innerHTML = '<h2>My Profile</h2><p>Loading profile...</p>';
     try {
-      const profileRes = await backendFetch('/profile');
+      const [profileRes, meRes] = await Promise.all([
+        backendFetch('/profile'),
+        backendFetch('/auth/me'),
+      ]);
       const p = profileRes.data || {};
+      const userName = meRes?.data?.name || meRes?.name || 'Alumni';
       const totalEntries = profileSections.reduce((sum, section) => sum + ((p[section.key] || []).length), 0);
 
       contentArea.innerHTML = `
-        <h2>My Alumni Profile</h2>
-        <p class="insight">Manage your profile, image, and all qualification/employment sections.</p>
-        <div class="profile-summary-grid">
-          <div class="card profile-summary-card"><h3>Qualification Entries</h3><div class="value">${totalEntries}</div></div>
-          <div class="card profile-summary-card"><h3>Current Role</h3><div class="profile-meta-value">${escapeHtml(p.currentRole || 'Not set')}</div></div>
-          <div class="card profile-summary-card"><h3>Current Employer</h3><div class="profile-meta-value">${escapeHtml(p.currentEmployer || 'Not set')}</div></div>
-          <div class="card profile-summary-card"><h3>Graduation Year</h3><div class="profile-meta-value">${escapeHtml(p.graduationYear || 'Not set')}</div></div>
+    <h2>My Alumni Profile</h2>
+    <p class="insight">Manage your profile, image, and all qualification/employment sections.</p>
+
+    <!-- PROFILE HERO CARD -->
+    <div style="
+      display:flex;
+      align-items:center;
+      gap:24px;
+      margin:20px 0 24px;
+      padding:24px 28px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:20px;
+      box-shadow:var(--shadow-sm);
+      flex-wrap:wrap;
+    ">
+      <!-- Avatar -->
+      ${p.photoUrl
+        ? `<img
+    src="http://localhost:3000${p.photoUrl}?v=${Date.now()}"
+    alt="Profile photo"
+    style="width:96px;height:96px;border-radius:50%;object-fit:cover;display:block;flex-shrink:0;border:3px solid var(--blue);box-shadow:0 0 0 5px rgba(29,78,216,0.12),0 4px 16px rgba(0,0,0,0.10);"
+    onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+  >
+  <div style="display:none;width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#3b82f6);align-items:center;justify-content:center;font-size:2.2rem;color:#fff;font-family:'DM Serif Display',serif;flex-shrink:0;box-shadow:0 0 0 5px rgba(29,78,216,0.12);">
+    ${escapeHtml((userName || 'A').charAt(0).toUpperCase())}
+  </div>`
+        : `<div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:2.2rem;color:#fff;font-family:'DM Serif Display',serif;flex-shrink:0;box-shadow:0 0 0 5px rgba(29,78,216,0.12);">
+            ${escapeHtml((userName || 'A').charAt(0).toUpperCase())}
+          </div>`
+      }
+
+      <!-- Name, role, LinkedIn -->
+      <div style="flex:1;min-width:180px;">
+        <div style="font-size:1.25rem;font-weight:700;color:#060e1f;letter-spacing:-0.01em;margin-bottom:4px;">
+          ${escapeHtml(userName)}
         </div>
-
-        <div class="card" style="margin-bottom:16px">
-        <h3>Core Profile</h3>
-        <form id="coreProfileForm" style="display:grid;gap:10px;margin-top:10px">
-          <textarea name="bio" rows="4" placeholder="Professional biography">${escapeHtml(p.bio || '')}</textarea>
-          <input type="url" name="linkedInUrl" placeholder="LinkedIn URL" value="${escapeHtml(p.linkedInUrl || '')}">
-          <input type="text" name="currentRole" placeholder="Current Role" value="${escapeHtml(p.currentRole || '')}">
-          <input type="text" name="currentEmployer" placeholder="Current Employer" value="${escapeHtml(p.currentEmployer || '')}">
-          <input type="text" name="location" placeholder="Location (e.g. London, UK)" value="${escapeHtml(p.location || '')}">
-          <input type="number" name="graduationYear" placeholder="Graduation Year" value="${escapeHtml(p.graduationYear || '')}" min="1950" max="2100">
-
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:0.85rem;color:#64748b;font-weight:500">Programme of Study</label>
-            <input
-              type="text"
-              name="programme"
-              placeholder="e.g. BSc Computer Science, BA Business Management"
-              value="${escapeHtml(p.programme || '')}"
-              list="programme-suggestions"
-            >
-            <datalist id="programme-suggestions">
-              <option value="BSc Computer Science">
-              <option value="BEng Electrical Engineering">
-              <option value="BSc Data Science">
-              <option value="MSc Cyber Security">
-              <option value="BA Business Management">
-              <option value="BSc Software Engineering">
-              <option value="MEng Computer Engineering">
-              <option value="BSc Artificial Intelligence">
-              <option value="MSc Data Analytics">
-              <option value="BEng Mechanical Engineering">
-            </datalist>
-            <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any programme</span>
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:0.85rem;color:#64748b;font-weight:500">Industry Sector</label>
-            <input
-              type="text"
-              name="industry"
-              placeholder="e.g. Technology, Financial Services, Healthcare"
-              value="${escapeHtml(p.industry || '')}"
-              list="industry-suggestions"
-            >
-            <datalist id="industry-suggestions">
-              <option value="Technology">
-              <option value="Financial Services">
-              <option value="Healthcare">
-              <option value="Energy & Utilities">
-              <option value="Government & Defence">
-              <option value="Consulting">
-              <option value="Education">
-              <option value="Retail & E-commerce">
-              <option value="Media & Entertainment">
-              <option value="Manufacturing">
-              <option value="Legal">
-              <option value="Non-profit">
-            </datalist>
-            <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any industry</span>
-          </div>
-
-          <button type="submit" class="btn-primary">Save Core Profile</button>
-        </form>
+        <div style="font-size:0.9rem;color:#374151;margin-bottom:10px;line-height:1.5;">
+          ${escapeHtml(p.currentRole || '')}${p.currentRole && p.currentEmployer ? ' · ' : ''}${escapeHtml(p.currentEmployer || '')}
+          ${p.location ? `<span style="color:#9ca3af;"> · ${escapeHtml(p.location)}</span>` : ''}
+        </div>
+        ${p.linkedInUrl ? `
+          <a href="${escapeHtml(p.linkedInUrl)}" target="_blank" rel="noreferrer" style="
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:0.82rem;font-weight:600;
+            color:#1d4ed8;
+            background:rgba(29,78,216,0.08);
+            padding:5px 13px;
+            border-radius:999px;
+            border:1px solid rgba(29,78,216,0.22);
+            text-decoration:none;
+            transition:all 0.15s;
+          ">LinkedIn ↗</a>
+        ` : ''}
       </div>
 
-        <div class="card" style="margin-bottom:16px">
-          <h3>Profile Photo</h3>
-          <form id="photoForm" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;margin-top:10px">
-            <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
-            <button type="submit" class="btn-primary">Upload Photo</button>
-          </form>
-          ${p.photoUrl ? `
-            <div class="profile-photo-preview-wrap">
-              <img
-                src="http://localhost:3000${p.photoUrl}?v=${Date.now()}"
-                alt="Uploaded profile photo"
-                class="profile-photo-preview"
-              >
-              <p>Current photo: <a href="http://localhost:3000${p.photoUrl}" target="_blank" rel="noreferrer">Open full image</a></p>
-            </div>
-          ` : '<p style="margin-top:10px;color:#64748b">No profile photo uploaded yet.</p>'}
+      <!-- Photo upload button -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
+        <label for="quickPhotoInput" style="
+          display:inline-flex;align-items:center;justify-content:center;
+          gap:8px;padding:10px 20px;
+          border-radius:999px;
+          font-family:var(--font-body);font-size:0.87rem;font-weight:600;
+          cursor:pointer;border:1.5px solid rgba(29,78,216,0.28);
+          color:var(--blue);background:transparent;
+          transition:all 0.15s;white-space:nowrap;
+        ">
+          ${p.photoUrl ? '📷 Change Photo' : '📷 Upload Photo'}
+        </label>
+        <input type="file" id="quickPhotoInput" name="photo" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+        <span style="font-size:0.72rem;color:#9ca3af;">JPG, PNG or WEBP</span>
+      </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="profile-summary-grid">
+      <div class="card profile-summary-card"><h3>Qualification Entries</h3><div class="value">${totalEntries}</div></div>
+      <div class="card profile-summary-card"><h3>Current Role</h3><div class="profile-meta-value">${escapeHtml(p.currentRole || 'Not set')}</div></div>
+      <div class="card profile-summary-card"><h3>Current Employer</h3><div class="profile-meta-value">${escapeHtml(p.currentEmployer || 'Not set')}</div></div>
+      <div class="card profile-summary-card"><h3>Graduation Year</h3><div class="profile-meta-value">${escapeHtml(p.graduationYear || 'Not set')}</div></div>
+    </div>
+
+    <!-- CORE PROFILE FORM — photo card removed, now in hero -->
+    <div class="card" style="margin-bottom:16px">
+      <h3>Core Profile</h3>
+      <form id="coreProfileForm" style="display:grid;gap:12px;margin-top:14px">
+        <textarea name="bio" rows="4" placeholder="Professional biography">${escapeHtml(p.bio || '')}</textarea>
+        <input type="url" name="linkedInUrl" placeholder="LinkedIn URL" value="${escapeHtml(p.linkedInUrl || '')}">
+        <input type="text" name="currentRole" placeholder="Current Role" value="${escapeHtml(p.currentRole || '')}">
+        <input type="text" name="currentEmployer" placeholder="Current Employer" value="${escapeHtml(p.currentEmployer || '')}">
+        <input type="text" name="location" placeholder="Location (e.g. London, UK)" value="${escapeHtml(p.location || '')}">
+        <input type="number" name="graduationYear" placeholder="Graduation Year" value="${escapeHtml(p.graduationYear || '')}" min="1950" max="2100">
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.85rem;color:#64748b;font-weight:500">Programme of Study</label>
+          <input
+            type="text"
+            name="programme"
+            placeholder="e.g. BSc Computer Science, BA Business Management"
+            value="${escapeHtml(p.programme || '')}"
+            list="programme-suggestions"
+          >
+          <datalist id="programme-suggestions">
+            <option value="BSc Computer Science">
+            <option value="BEng Electrical Engineering">
+            <option value="BSc Data Science">
+            <option value="MSc Cyber Security">
+            <option value="BA Business Management">
+            <option value="BSc Software Engineering">
+            <option value="MEng Computer Engineering">
+            <option value="BSc Artificial Intelligence">
+            <option value="MSc Data Analytics">
+            <option value="BEng Mechanical Engineering">
+          </datalist>
+          <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any programme</span>
         </div>
 
-        <div id="profileSections"></div>
-      `;
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.85rem;color:#64748b;font-weight:500">Industry Sector</label>
+          <input
+            type="text"
+            name="industry"
+            placeholder="e.g. Technology, Financial Services, Healthcare"
+            value="${escapeHtml(p.industry || '')}"
+            list="industry-suggestions"
+          >
+          <datalist id="industry-suggestions">
+            <option value="Technology">
+            <option value="Financial Services">
+            <option value="Healthcare">
+            <option value="Energy & Utilities">
+            <option value="Government & Defence">
+            <option value="Consulting">
+            <option value="Education">
+            <option value="Retail & E-commerce">
+            <option value="Media & Entertainment">
+            <option value="Manufacturing">
+            <option value="Legal">
+            <option value="Non-profit">
+          </datalist>
+          <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any industry</span>
+        </div>
+
+        <button type="submit" class="btn-primary">Save Core Profile</button>
+      </form>
+    </div>
+
+    <div id="profileSections"></div>
+  `;
+
+      // Quick photo upload from hero card
+      document.getElementById('quickPhotoInput')?.addEventListener('change', async (e) => {
+        if (!e.target.files[0]) return;
+        const fd = new FormData();
+        fd.append('photo', e.target.files[0]);
+        try {
+          await backendFetch('/profile/photo', { method: 'POST', body: fd });
+          showMessage('Photo updated successfully.', 'success');
+          loadProfile();
+        } catch (err) {
+          showMessage(`Upload failed: ${err.message}`, 'danger');
+        }
+      });
 
       document.getElementById('coreProfileForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -576,16 +650,16 @@ document.addEventListener('DOMContentLoaded', () => {
         loadProfile();
       });
 
-      document.getElementById('photoForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const body = await backendFetch('/profile/photo', {
-          method: 'POST',
-          body: fd,
-        });
-        showMessage('Photo uploaded successfully.', 'success');
-        loadProfile();
-      });
+      // document.getElementById('photoForm').addEventListener('submit', async (e) => {
+      //   e.preventDefault();
+      //   const fd = new FormData(e.target);
+      //   const body = await backendFetch('/profile/photo', {
+      //     method: 'POST',
+      //     body: fd,
+      //   });
+      //   showMessage('Photo uploaded successfully.', 'success');
+      //   loadProfile();
+      // });
 
       const sectionsEl = document.getElementById('profileSections');
       for (const section of profileSections) {
@@ -709,7 +783,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     } catch (err) {
-      contentArea.innerHTML = `<div class="error">Failed to load profile manager: ${err.message}</div>`;
+      if (err.message.includes('not found') || err.message.includes('404')) {
+    contentArea.innerHTML = `
+      <h2>My Alumni Profile</h2>
+      <div style="
+        margin-top:40px;
+        padding:40px;
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:20px;
+        text-align:center;
+        box-shadow:var(--shadow-sm);
+      ">
+        <div style="font-size:3rem;margin-bottom:16px;">🎓</div>
+        <div style="font-size:1.2rem;font-weight:600;color:#060e1f;margin-bottom:8px;">
+          Administrator Account
+        </div>
+        <p style="color:#6b7280;max-width:420px;margin:0 auto;line-height:1.6;">
+          Admin accounts do not have alumni profiles. 
+          Profile management is available to alumni users only.
+          Log in with an alumni account to manage a profile.
+        </p>
+        <div style="margin-top:24px;">
+          <a href="#dashboard" class="btn-primary" style="text-decoration:none;display:inline-flex;">
+            Go to Dashboard
+          </a>
+        </div>
+      </div>
+    `;
+  } else {
+    contentArea.innerHTML = `<div class="error">Failed to load profile manager: ${err.message}</div>`;
+  }
     }
   }
 

@@ -80,7 +80,11 @@ if (process.env.NODE_ENV !== 'test') {
 
 // STATIC FILES 
 
-app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || './uploads')));
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.resolve(process.env.UPLOAD_DIR || './uploads')));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // SWAGGER DOCUMENTATION 
