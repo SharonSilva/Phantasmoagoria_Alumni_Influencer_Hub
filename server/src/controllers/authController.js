@@ -62,9 +62,16 @@ async function verifyEmail(req, res) {
   if (!handleValidation(req, res)) return;
 
   const { token } = req.query;
-  const record = await Token.findValidEmailToken(token);
 
+  // Step 1: find the record without userId filter (we don't know it yet)
+  const record = await Token.findValidEmailToken(token, null);
   if (!record) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
+  }
+
+  // Step 2: re-validate scoped to the found userId — prevents cross-user token abuse
+  const scopedRecord = await Token.findValidEmailToken(token, record.userId);
+  if (!scopedRecord) {
     return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
   }
 
@@ -133,7 +140,7 @@ async function resetPassword(req, res) {
   if (!handleValidation(req, res)) return;
 
   const { token, password } = req.body;
-  const record = await Token.findValidResetToken(token);
+  const record = await Token.findValidResetToken(token, null);
 
   if (!record) {
     return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });

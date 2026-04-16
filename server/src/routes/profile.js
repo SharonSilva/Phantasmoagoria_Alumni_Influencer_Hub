@@ -16,11 +16,19 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB) || 5) * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
+  //  extension + MIME type check
+fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp'];
-    allowed.includes(path.extname(file.originalname).toLowerCase())
-      ? cb(null, true)
-      : cb(new Error('Only jpg, jpeg, png, webp allowed'));
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+
+    const extOk  = allowed.includes(path.extname(file.originalname).toLowerCase());
+    const mimeOk = allowedMimes.includes(file.mimetype);
+
+    if (extOk && mimeOk) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only jpg, jpeg, png, webp images allowed (invalid type or extension)'));
+    }
   },
 });
 

@@ -165,7 +165,22 @@ function getBidStatus(req, res) {
 
 // getBidHistory 
 function getBidHistory(req, res) {
-  res.json({ success: true, data: Bid.getUserBidHistory(req.user.id) });
+  const history = Bid.getUserBidHistory(req.user.id).map(bid => {
+    const isResolved = bid.status === 'won' || bid.status === 'lost' || bid.status === 'cancelled';
+    return {
+      id:          bid.id,
+      bidDate:     bid.bidDate,
+      status:      bid.status,
+      submittedAt: bid.submittedAt,
+      // Only reveal amount after bidding is resolved — keeps blind integrity during active window
+      amount:      isResolved ? bid.amount : undefined,
+      feedback:    isResolved
+        ? null
+        : 'Bid amount hidden while auction is active',
+    };
+  });
+
+  res.json({ success: true, data: history });
 }
 
 // getMonthlyStatis

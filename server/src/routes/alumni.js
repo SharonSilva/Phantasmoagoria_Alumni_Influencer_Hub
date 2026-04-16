@@ -5,7 +5,7 @@ const { authenticateKey } = require('../middleware/Auth');
 const { validateAlumniQuery, validateIdParam, handleValidationErrors } = require('../middleware/validationMiddleware');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-// ============= ALUMNI ROUTES WITH VALIDATION =============
+// ALUMNI ROUTES WITH VALIDATION 
 
 /**
  * Get all alumni with filters & pagination

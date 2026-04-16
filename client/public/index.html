@@ -6,7 +6,7 @@
   <title>Alumni Analytics Dashboard</title>
   <link rel="stylesheet" href="/style.css">
 
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -14,9 +14,20 @@
   <div class="app-container">
     <header class="navbar">
       <div class="navbar-brand">
-        <h1>📊 Alumni Analytics Dashboard</h1>
+        <h1>Alumni Analytics Dashboard</h1>
       </div>
       <nav class="navbar-nav">
+
+        <span id="current-section" style="
+        color:#93c5fd;
+        font-size:0.82rem;
+        padding:4px 10px;
+        background:rgba(255,255,255,0.08);
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,0.14);
+        white-space:nowrap;
+      ">Dashboard</span>
+
         <a href="#dashboard" class="nav-link active">Dashboard</a>
         <a href="#profile" class="nav-link">My Profile</a>
         <a href="#alumni" class="nav-link">Alumni</a>

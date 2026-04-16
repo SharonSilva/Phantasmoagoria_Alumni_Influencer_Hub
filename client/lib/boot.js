@@ -22,9 +22,6 @@ module.exports = function(parent, options) {
     let method;
     let url;
 
-    if (obj.engine) app.set('view engine', obj.engine);
-    app.set('views', path.join(__dirname, '..', 'controllers', controllerName, 'views'));
-
     for (let key in obj) {
       if (~['name', 'prefix', 'engine', 'before'].indexOf(key)) continue;
 

@@ -3,13 +3,15 @@ const { body } = require('express-validator');
 const ctrl     = require('../controllers/ApikeyController');
 const { authenticate, requireAdmin } = require('../middleware/Auth');
 
-// Updated to include 'read:analytics' as per Feature 4 requirements
+
 const VALID_SCOPES = [
-  'read:featured', 
-  'read:alumni', 
-  'read:sponsors', 
-  'read:events', 
-  'read:analytics'
+  'read:featured',
+  'read:alumni',
+  'read:alumni_of_day',
+  'read:sponsors',
+  'read:events',
+  'read:analytics',
+  'read:donations',
 ];
 
 const router = express.Router();
@@ -20,7 +22,7 @@ router.get('/',               ctrl.listKeys);
 router.post('/', [
   body('name').trim().notEmpty(),
   body('scopes').optional().isArray().custom(scopes => {
-    // This logic now checks against the updated VALID_SCOPES list
+    // checks against the updated VALID_SCOPES list
     const invalid = scopes.filter(s => !VALID_SCOPES.includes(s));
     if (invalid.length) {
       throw new Error(`Invalid scopes: ${invalid.join(', ')}`);

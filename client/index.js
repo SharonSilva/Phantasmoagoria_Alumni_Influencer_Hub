@@ -2,7 +2,7 @@
 
 /**
  * Express MVC Server — Alumni Analytics Dashboard (Client)
- * Part 2: Frontend Dashboard for Alumni Influencers Platform
+ * Frontend Dashboard for Alumni Influencers Platform
  */
 
 const path = require('node:path');

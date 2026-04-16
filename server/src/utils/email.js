@@ -45,7 +45,8 @@ const FROM = process.env.EMAIL_FROM || '"Alumni Influencers" <noreply@eastminste
   // Send email verification link after registration.
 
 async function sendVerificationEmail(to, token) {
-  const link = `http://localhost:${process.env.PORT || 3000}/api/auth/verify-email?token=${token}`;
+  const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:3001';
+  const link = `${clientBaseUrl}/#verify?token=${encodeURIComponent(token)}`;
   return transport.sendMail({
     from:    FROM,
     to,
@@ -59,7 +60,8 @@ async function sendVerificationEmail(to, token) {
  //Send a password reset link.
 
 async function sendPasswordResetEmail(to, token) {
-  const link = `http://localhost:${process.env.PORT || 3000}/api/auth/reset-password?token=${token}`;
+  const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:3001';
+  const link = `${clientBaseUrl}/#reset?token=${encodeURIComponent(token)}`;
   return transport.sendMail({
     from:    FROM,
     to,

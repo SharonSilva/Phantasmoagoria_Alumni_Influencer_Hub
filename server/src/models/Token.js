@@ -32,7 +32,6 @@ class Token {
   }
 
   // Mark the matching email token as used (single-use enforcement).
-  // BUG FIX: Must find the correct record by userId + matching hash, not just any unused record.
   static async consumeEmailToken(raw, userId) {
     const records = db.emailTokens.filter(t => !t.used && (!userId || t.userId === userId));
     for (const record of records) {
@@ -60,7 +59,6 @@ class Token {
   }
 
   // Find a valid (unused, unexpired) password reset token for a specific user.
-  // BUG FIX: Same fix as findValidEmailToken — filter by userId before comparing hash.
   static async findValidResetToken(raw, userId) {
     const records = db.passwordResets.filter(r => !r.used && (!userId || r.userId === userId));
     for (const record of records) {
@@ -72,7 +70,7 @@ class Token {
   }
 
   // Mark a reset token as used.
-  // BUG FIX: Find by userId + matching hash, not just any unused record.
+  // Find by userId + matching hash, not just any unused record.
   static async consumeResetToken(raw, userId) {
     const records = db.passwordResets.filter(r => !r.used && (!userId || r.userId === userId));
     for (const record of records) {

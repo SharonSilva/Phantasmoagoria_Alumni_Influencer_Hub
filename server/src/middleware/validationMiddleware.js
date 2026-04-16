@@ -5,7 +5,7 @@
 
 const { body, validationResult, query, param } = require('express-validator');
 
-// ============= VALIDATION RULES =============
+// VALIDATION RULES 
 
 // Auth Validation
 const validateRegistration = [
@@ -179,7 +179,7 @@ const validateIdParam = [
     .withMessage('Invalid ID format')
 ];
 
-// ============= ERROR HANDLER MIDDLEWARE =============
+// ERROR HANDLER MIDDLEWARE
 
 /**
  * Handle validation errors
@@ -206,7 +206,7 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// ============= SANITIZATION MIDDLEWARE =============
+// SANITIZATION MIDDLEWARE 
 
 /**
  * Sanitize all string inputs

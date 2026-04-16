@@ -1,7 +1,6 @@
 /**
  * Frontend Database Reference
  * 
- * This is NOT a real database!
  * It's just a reference to help with client-side data management.
  * All actual data comes from the backend API.
  */

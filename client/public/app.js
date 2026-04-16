@@ -6,7 +6,6 @@
  * Architecture: this JS runs in the browser and calls the CLIENT server (port 3001),
  * NOT the backend directly. The client server handles API key injection and session auth.
  * 
- * BUG FIX: previous version hardcoded the mobile AR API key (east_mobile_v2_def456uvw)
  * which only has read:alumni_of_day scope — analytics endpoints need read:analytics.
  * API keys are now injected server-side; the browser never sends X-API-Key directly.
  * 
@@ -23,8 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let   csrfToken   = null; // stored after login, sent with state-changing requests
   let   authToken   = null; // in-memory JWT for alumni profile management calls
   const chartInstances = new Map();
+  const UNIVERSITY_DOMAIN = 'alumni.eastminster.ac.uk';
+  const SESSION_TIMEOUT_MINUTES = 24 * 60;
 
-  // ─── HELPERS ──────────────────────────────────────────────────────────────
+  // HELPERS
 
   // All fetch calls go to the client server (port 3001), NOT the backend directly.
   // The client server injects the correct API key and forwards the request.
@@ -80,20 +81,67 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => box.classList.add('hidden'), 4000);
   }
 
-  function renderLoadingState(title = 'Loading dashboard...') {
-    contentArea.innerHTML = `
-      <div class="page-enter">
-        <div class="loading-skeleton skeleton-title"></div>
-        <p class="insight">${escapeHtml(title)}</p>
-        <div class="skeleton-grid" style="margin-top:14px">
-          <div class="loading-skeleton skeleton-card"></div>
-          <div class="loading-skeleton skeleton-card"></div>
-          <div class="loading-skeleton skeleton-card"></div>
-          <div class="loading-skeleton skeleton-card"></div>
-        </div>
-      </div>
-    `;
+  function getHashQueryParam(name) {
+    return new URLSearchParams((window.location.hash.split('?')[1] || '')).get(name) || '';
   }
+
+  function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+  }
+
+  function validateUniversityEmail(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return 'Email is required.';
+    const allowedDomains = [`@${UNIVERSITY_DOMAIN}`, '@eastminster.ac.uk'];
+    if (!allowedDomains.some(domain => normalizedEmail.endsWith(domain))) {
+      return `Must use a @${UNIVERSITY_DOMAIN} university email.`;
+    }
+    return '';
+  }
+
+  function validateStrongPassword(password) {
+    if (!password) return 'Password is required.';
+    if (password.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Z]/.test(password)) return 'Password must include an uppercase letter.';
+    if (!/[0-9]/.test(password)) return 'Password must include a number.';
+    if (!/[^A-Za-z0-9]/.test(password)) return 'Password must include a special character.';
+    return '';
+  }
+
+  function markSessionActivity() {
+    localStorage.setItem('authLastActivityAt', String(Date.now()));
+  }
+
+  function clearSessionActivity() {
+    localStorage.removeItem('authLastActivityAt');
+  }
+
+  function isSessionTimedOut() {
+    const lastActivityAt = Number(localStorage.getItem('authLastActivityAt') || 0);
+    if (!lastActivityAt) return false;
+    return (Date.now() - lastActivityAt) > (SESSION_TIMEOUT_MINUTES * 60 * 1000);
+  }
+
+  function renderLoadingState(title = 'Loading...') {
+  contentArea.innerHTML = `
+    <div class="page-enter">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div class="loading-skeleton" style="height:22px;width:200px;border-radius:6px"></div>
+      </div>
+      <div class="loading-skeleton" style="height:14px;width:320px;border-radius:4px;margin-bottom:20px"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.4rem">
+        ${[1,2,3,4,5,6].map(() => `
+          <div class="loading-skeleton" style="height:90px;border-radius:14px"></div>
+        `).join('')}
+      </div>
+      <div class="loading-skeleton" style="height:280px;border-radius:14px;margin-bottom:1rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="loading-skeleton" style="height:180px;border-radius:14px"></div>
+        <div class="loading-skeleton" style="height:180px;border-radius:14px"></div>
+      </div>
+    </div>
+  `;
+}
 
   function toCsv(rows) {
     if (!rows.length) return '';
@@ -116,22 +164,96 @@ document.addEventListener('DOMContentLoaded', () => {
     URL.revokeObjectURL(url);
   }
 
-  async function exportSectionToPdf(title, html) {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `<h2>${escapeHtml(title)}</h2>${html}`;
-    await html2pdf().from(wrapper).set({
-      margin: 10,
-      filename: `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`,
-      html2canvas: { scale: 2 },
-    }).save();
-  }
+  async function exportSectionToPdf(title, bodyHtml, meta = {}) {
+  const generatedAt = new Date().toLocaleString();
 
-  // ─── AUTH ──────────────────────────────────────────────────────────────────
+  const clip = document.createElement('div');
+  clip.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 794px;
+    height: auto;
+    overflow: visible;
+    z-index: -99999;
+    pointer-events: none;
+  `;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `
+    font-family: Arial, sans-serif;
+    color: #1e293b;
+    width: 794px;
+    background: white;
+    box-sizing: border-box;
+  `;
+
+  wrapper.innerHTML = `
+    <div style="background:#0f172a;color:white;padding:24px 32px;">
+      <div style="font-size:11px;letter-spacing:1px;color:#93c5fd;margin-bottom:4px;text-transform:uppercase;">
+        University of Eastminster — Alumni Analytics Platform
+      </div>
+      <div style="font-size:22px;font-weight:bold;margin-bottom:4px;">${title}</div>
+      <div style="font-size:11px;color:#cbd5e1;">Generated: ${generatedAt}</div>
+    </div>
+
+    <div style="background:#f1f5f9;border-bottom:2px solid #3b82f6;padding:10px 32px;font-size:11px;color:#475569;">
+      ${meta.filters ? `<span style="margin-right:24px"><strong>Filters:</strong> ${meta.filters}</span>` : ''}
+      ${meta.totalRecords !== undefined ? `<span style="margin-right:24px"><strong>Records:</strong> ${meta.totalRecords}</span>` : ''}
+      ${meta.section ? `<span><strong>Section:</strong> ${meta.section}</span>` : ''}
+    </div>
+
+    <div style="padding:24px 32px;">
+      ${bodyHtml}
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding:12px 32px;font-size:10px;color:#94a3b8;margin-top:16px;">
+      <span style="float:left">University of Eastminster — Confidential</span>
+      <span style="float:right">Alumni Analytics Dashboard — ${generatedAt}</span>
+      <div style="clear:both"></div>
+    </div>
+  `;
+
+  clip.appendChild(wrapper);
+  document.body.appendChild(clip);
+
+  // Small delay to let the browser fully paint the element before capture
+  await new Promise(r => setTimeout(r, 100));
+
+  try {
+    await html2pdf()
+      .set({
+        margin: [10, 10, 10, 10],
+        filename: `${title.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`,
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: 794,
+          width: 794,        // ← force exact capture width
+          x: 0,
+          y: 0,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      })
+      .from(wrapper)
+      .save();
+  } finally {
+    document.body.removeChild(clip);
+  }
+}
+
+  // AUTH
 
   async function checkAuth() {
     try {
       const data = await apiFetch('/auth/check');
-      if (data.loggedIn && data.token) authToken = data.token;
+      if (data.loggedIn && data.token) {
+        authToken = data.token;
+        markSessionActivity();
+      }
       return data.loggedIn;
     } catch {
       return false;
@@ -140,8 +262,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const handleLogin = async (event) => {
     event.preventDefault();
-    const email    = document.getElementById('loginEmail').value;
+    const email = normalizeEmail(document.getElementById('loginEmail').value);
     const password = document.getElementById('loginPassword').value;
+    const emailError = validateUniversityEmail(email);
+
+    if (emailError) {
+      showMessage(emailError, 'danger');
+      return;
+    }
+
+    if (!password) {
+      showMessage('Password is required.', 'danger');
+      return;
+    }
 
     try {
       const data = await apiFetch('/auth/login', {
@@ -153,6 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store CSRF token in memory only (not localStorage) — used for state-changing requests
         csrfToken = data.csrfToken;
         authToken = data.token || null;
+        markSessionActivity();
         showMessage(`Welcome back, ${data.user?.name || 'Staff'}!`, 'success');
         navigate('#dashboard');
       }
@@ -167,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch { /* ignore */ }
     csrfToken = null;
     authToken = null;
+    clearSessionActivity();
     navigate('#login');
   };
 
@@ -343,17 +478,68 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
 
         <div class="card" style="margin-bottom:16px">
-          <h3>Core Profile</h3>
-          <form id="coreProfileForm" style="display:grid;gap:10px;margin-top:10px">
-            <textarea name="bio" rows="4" placeholder="Professional biography">${escapeHtml(p.bio || '')}</textarea>
-            <input type="url" name="linkedInUrl" placeholder="LinkedIn URL" value="${escapeHtml(p.linkedInUrl || '')}">
-            <input type="text" name="currentRole" placeholder="Current Role" value="${escapeHtml(p.currentRole || '')}">
-            <input type="text" name="currentEmployer" placeholder="Current Employer" value="${escapeHtml(p.currentEmployer || '')}">
-            <input type="text" name="location" placeholder="Location" value="${escapeHtml(p.location || '')}">
-            <input type="number" name="graduationYear" placeholder="Graduation Year" value="${escapeHtml(p.graduationYear || '')}" min="1950" max="2100">
-            <button type="submit" class="btn-primary">Save Core Profile</button>
-          </form>
-        </div>
+        <h3>Core Profile</h3>
+        <form id="coreProfileForm" style="display:grid;gap:10px;margin-top:10px">
+          <textarea name="bio" rows="4" placeholder="Professional biography">${escapeHtml(p.bio || '')}</textarea>
+          <input type="url" name="linkedInUrl" placeholder="LinkedIn URL" value="${escapeHtml(p.linkedInUrl || '')}">
+          <input type="text" name="currentRole" placeholder="Current Role" value="${escapeHtml(p.currentRole || '')}">
+          <input type="text" name="currentEmployer" placeholder="Current Employer" value="${escapeHtml(p.currentEmployer || '')}">
+          <input type="text" name="location" placeholder="Location (e.g. London, UK)" value="${escapeHtml(p.location || '')}">
+          <input type="number" name="graduationYear" placeholder="Graduation Year" value="${escapeHtml(p.graduationYear || '')}" min="1950" max="2100">
+
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:0.85rem;color:#64748b;font-weight:500">Programme of Study</label>
+            <input
+              type="text"
+              name="programme"
+              placeholder="e.g. BSc Computer Science, BA Business Management"
+              value="${escapeHtml(p.programme || '')}"
+              list="programme-suggestions"
+            >
+            <datalist id="programme-suggestions">
+              <option value="BSc Computer Science">
+              <option value="BEng Electrical Engineering">
+              <option value="BSc Data Science">
+              <option value="MSc Cyber Security">
+              <option value="BA Business Management">
+              <option value="BSc Software Engineering">
+              <option value="MEng Computer Engineering">
+              <option value="BSc Artificial Intelligence">
+              <option value="MSc Data Analytics">
+              <option value="BEng Mechanical Engineering">
+            </datalist>
+            <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any programme</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:0.85rem;color:#64748b;font-weight:500">Industry Sector</label>
+            <input
+              type="text"
+              name="industry"
+              placeholder="e.g. Technology, Financial Services, Healthcare"
+              value="${escapeHtml(p.industry || '')}"
+              list="industry-suggestions"
+            >
+            <datalist id="industry-suggestions">
+              <option value="Technology">
+              <option value="Financial Services">
+              <option value="Healthcare">
+              <option value="Energy & Utilities">
+              <option value="Government & Defence">
+              <option value="Consulting">
+              <option value="Education">
+              <option value="Retail & E-commerce">
+              <option value="Media & Entertainment">
+              <option value="Manufacturing">
+              <option value="Legal">
+              <option value="Non-profit">
+            </datalist>
+            <span style="font-size:0.78rem;color:#94a3b8">Start typing or choose from suggestions — you can enter any industry</span>
+          </div>
+
+          <button type="submit" class="btn-primary">Save Core Profile</button>
+        </form>
+      </div>
 
         <div class="card" style="margin-bottom:16px">
           <h3>Profile Photo</h3>
@@ -527,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ─── DASHBOARD ────────────────────────────────────────────────────────────
+  // DASHBOARD 
 
   const loadDashboard = async () => {
     renderLoadingState('Loading analytics overview and recent winners...');
@@ -596,9 +782,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <table class="data-table">
           <thead><tr><th>Name</th><th>Date</th><th>Bid Amount</th></tr></thead>
           <tbody>
-            ${(res.recentWinners || []).map(w =>
-              `<tr><td>${w.name}</td><td>${w.displayDate}</td><td>${w.isHigh ? 'High Tier' : 'Standard Tier'}</td></tr>`
-            ).join('')}
+            ${(res.recentWinners || []).length
+              ? (res.recentWinners).map(w =>
+                  `<tr><td>${escapeHtml(w.name || 'Unknown')}</td><td>${w.displayDate}</td><td>Winner</td></tr>`
+                ).join('')
+              : `<tr><td colspan="3" style="text-align:center;color:#64748b;padding:20px;font-style:italic">No winners recorded yet.</td></tr>`
+            }
           </tbody>
         </table>
         <div class="card" style="margin-top:16px">
@@ -619,55 +808,183 @@ document.addEventListener('DOMContentLoaded', () => {
             <button id="downloadDashboardCsv" class="btn-primary">Download Dashboard CSV</button>
             <button id="downloadDashboardPdf" class="btn-primary">Generate Dashboard PDF</button>
           </div>
-        </div>`;
+        </div>
+              <div style="
+          margin-top:24px;
+          padding:10px 0;
+          border-top:1px solid #e2e8f0;
+          font-size:0.78rem;
+          color:#94a3b8;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+        ">
+          <span>Data refreshed: ${new Date().toLocaleString()}</span>
+          <span>University of Eastminster — Alumni Analytics Platform</span>
+        </div>
+        `;
 
       document.getElementById('downloadDashboardCsv').addEventListener('click', () => {
         const selected = Array.from(document.querySelectorAll('.report-metric:checked')).map(i => i.value);
-        const row = {};
+        if (!selected.length) {
+          showMessage('Please select at least one metric.', 'danger');
+          return;
+        }
         const extraMap = {
           businessIntoDataPct: curriculum.businessIntoDataPct,
-          cloudCertPct: curriculum.cloudCertPct,
-          agileCertCount: curriculum.agileCertCount,
-          bidMomentumPct: curriculum.bidMomentumPct,
+          cloudCertPct:        curriculum.cloudCertPct,
+          agileCertCount:      curriculum.agileCertCount,
+          bidMomentumPct:      curriculum.bidMomentumPct,
         };
-        selected.forEach(k => { row[k] = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0); });
-        downloadTextFile('dashboard-report.csv', toCsv([row]), 'text/csv');
+        const labelMap = {
+          totalAlumni:         'Total Alumni',
+          totalBids:           'Total Bids',
+          activeBids:          'Active Bids',
+          totalWinners:        'Total Winners',
+          monthlyWinners:      'Monthly Winners',
+          totalSponsors:       'Total Sponsors',
+          businessIntoDataPct: 'Business → Data Roles (%)',
+          cloudCertPct:        'Cloud Certification Share (%)',
+          agileCertCount:      'Agile/Scrum Cert Volume',
+          bidMomentumPct:      'Bidding Demand Momentum (%)',
+        };
+        const escape = (v) => `"${String(v ?? 'N/A').replace(/"/g, '""')}"`;
+
+        const lines = [
+          `"University of Eastminster — Alumni Analytics Platform"`,
+          `"Report: Custom Dashboard Metrics"`,
+          `"Generated: ${new Date().toLocaleString()}"`,
+          `"Selected Metrics: ${selected.length} of 10"`,
+          `""`,
+          `"Metric","Value"`,
+          ...selected.map(k => {
+            const value = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0);
+            return `${escape(labelMap[k] || k)},${escape(value)}`;
+          }),
+          `""`,
+          `"--- Curriculum Recommendations ---"`,
+          ...curriculum.recommendations.map((r, i) => `"${i + 1}. ${r.replace(/"/g, '""')}"`),
+        ];
+
+        const filename = `dashboard-report-${new Date().toISOString().split('T')[0]}.csv`;
+        downloadTextFile(filename, lines.join('\n'), 'text/csv');
+        showMessage(`Dashboard report exported to ${filename}`, 'success');
       });
 
       document.getElementById('downloadDashboardPdf').addEventListener('click', async () => {
-        const selected = Array.from(document.querySelectorAll('.report-metric:checked')).map(i => i.value);
-        const generatedAt = new Date().toLocaleString();
-        const extraMap = {
-          businessIntoDataPct: `${curriculum.businessIntoDataPct}%`,
-          cloudCertPct: `${curriculum.cloudCertPct}%`,
-          agileCertCount: curriculum.agileCertCount,
-          bidMomentumPct: `${curriculum.bidMomentumPct}%`,
-        };
-        const metricItems = selected.map(k => {
-          const value = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0);
-          return `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(value)}</li>`;
-        }).join('');
-        const recommendationItems = curriculum.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('');
-        const html = `
-          <p><strong>Generated:</strong> ${escapeHtml(generatedAt)}</p>
-          <p><strong>Data source:</strong> Alumni live platform APIs</p>
-          <h3>Selected Metrics</h3>
-          <ul>${metricItems}</ul>
-          <h3>Top Skill Signals</h3>
-          <ul>
-            ${curriculum.topSkills.map(s => `<li>${escapeHtml(s.label)}: ${escapeHtml(s.value)}</li>`).join('') || '<li>No skills data available.</li>'}
-          </ul>
-          <h3>Curriculum Recommendations</h3>
-          <ul>${recommendationItems}</ul>
-        `;
-        await exportSectionToPdf('Dashboard Report', html);
-      });
+  const selected = Array.from(document.querySelectorAll('.report-metric:checked')).map(i => i.value);
+
+  if (!selected.length) {
+    showMessage('Please select at least one metric.', 'danger');
+    return;
+  }
+
+  const extraMap = {
+    businessIntoDataPct: `${curriculum.businessIntoDataPct}%`,
+    cloudCertPct:        `${curriculum.cloudCertPct}%`,
+    agileCertCount:      curriculum.agileCertCount,
+    bidMomentumPct:      `${curriculum.bidMomentumPct}%`,
+  };
+
+  const labelMap = {
+    totalAlumni:         'Total Alumni',
+    totalBids:           'Total Bids',
+    activeBids:          'Active Bids',
+    totalWinners:        'Total Winners',
+    monthlyWinners:      'Monthly Winners',
+    totalSponsors:       'Total Sponsors',
+    businessIntoDataPct: 'Business → Data Roles (%)',
+    cloudCertPct:        'Cloud Certification Share (%)',
+    agileCertCount:      'Agile/Scrum Cert Volume',
+    bidMomentumPct:      'Bidding Demand Momentum (%)',
+  };
+
+  const metricRows = selected.map((k, i) => {
+    const value = (k in m) ? (m[k] ?? 0) : (extraMap[k] ?? 0);
+    return `
+      <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:500;color:#0f172a">
+          ${labelMap[k] || k}
+        </td>
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;color:#3b82f6;font-weight:bold">
+          ${escapeHtml(String(value))}
+        </td>
+      </tr>`;
+  }).join('');
+
+  const skillRows = curriculum.topSkills.length
+    ? curriculum.topSkills.map(s => `
+        <li style="margin-bottom:4px">
+          <strong>${escapeHtml(s.label)}</strong> — ${s.value} alumni independently acquired this certification post-graduation
+        </li>`).join('')
+    : '<li>No skills data available.</li>';
+
+  const recRows = curriculum.recommendations.map((r, i) =>
+    `<li style="margin-bottom:6px"><strong>${i + 1}.</strong> ${escapeHtml(r)}</li>`
+  ).join('');
+
+  const bodyHtml = `
+    <!-- Metrics table -->
+    <div style="font-size:13px;font-weight:bold;color:#0f172a;margin-bottom:8px">
+      Selected Metrics (${selected.length} of 10)
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px">
+      <thead>
+        <tr style="background:#0f172a;color:white">
+          <th style="padding:10px 12px;text-align:left;border:1px solid #1e293b;width:70%">Metric</th>
+          <th style="padding:10px 12px;text-align:left;border:1px solid #1e293b">Value</th>
+        </tr>
+      </thead>
+      <tbody>${metricRows}</tbody>
+    </table>
+
+    <!-- Skills gap signals -->
+    <div style="
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      border-left:4px solid #f59e0b;
+      border-radius:4px;
+      padding:12px 16px;
+      margin-bottom:20px;
+    ">
+      <div style="font-weight:bold;font-size:12px;color:#0f172a;margin-bottom:8px">
+        Top Skills Gap Signals
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:11px;color:#475569;line-height:1.7">
+        ${skillRows}
+      </ul>
+    </div>
+
+    <!-- Curriculum recommendations -->
+    <div style="
+      background:#f0fdf4;
+      border:1px solid #bbf7d0;
+      border-left:4px solid #16a34a;
+      border-radius:4px;
+      padding:12px 16px;
+    ">
+      <div style="font-weight:bold;font-size:12px;color:#0f172a;margin-bottom:8px">
+        Curriculum Recommendations
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:11px;color:#475569;line-height:1.8">
+        ${recRows}
+      </ul>
+    </div>
+  `;
+
+  await exportSectionToPdf('Dashboard Analytics Report', bodyHtml, {
+    section: 'Custom Report Generator',
+    totalRecords: selected.length,
+  });
+
+  showMessage('Dashboard PDF report generated.', 'success');
+});
     } catch (err) {
       contentArea.innerHTML = `<div class="error">Error loading dashboard: ${err.message}</div>`;
     }
   };
 
-  // ─── ALUMNI DIRECTORY ─────────────────────────────────────────────────────
+  //ALUMNI DIRECTORY
 
   const loadAlumni = async () => {
     const preset = JSON.parse(localStorage.getItem('alumniFilterPreset') || '{}');
@@ -756,176 +1073,514 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('exportAlumniCsv').addEventListener('click', () => {
-      const rows = lastData.map(a => ({
-        name: a.name,
-        programme: a.programme,
-        role: a.currentRole,
-        employer: a.currentEmployer,
-        industry: a.industry,
-        graduationYear: a.graduationYear,
-      }));
-      downloadTextFile('filtered-alumni.csv', toCsv(rows), 'text/csv');
-    });
+  if (!lastData.length) {
+    showMessage('No alumni data to export. Apply filters first.', 'danger');
+    return;
+  }
+  const filters = {
+    search:    document.getElementById('alumniSearch').value    || 'None',
+    programme: document.getElementById('filterProgramme').value || 'None',
+    year:      document.getElementById('filterYear').value      || 'None',
+    industry:  document.getElementById('filterIndustry').value  || 'None',
+  };
+  const programmes = [...new Set(lastData.map(a => a.programme).filter(Boolean))];
+  const industries  = [...new Set(lastData.map(a => a.industry).filter(Boolean))];
+  const escape = (v) => `"${String(v ?? 'N/A').replace(/"/g, '""')}"`;
+
+  const lines = [
+    `"University of Eastminster — Alumni Analytics Platform"`,
+    `"Report: Filtered Alumni Directory"`,
+    `"Generated: ${new Date().toLocaleString()}"`,
+    `"Total Records: ${lastData.length}"`,
+    `"Filters — Search: ${filters.search} | Programme: ${filters.programme} | Year: ${filters.year} | Industry: ${filters.industry}"`,
+    `""`,
+    `"Full Name","Programme","Current Role","Employer","Industry Sector","Graduation Year","LinkedIn URL"`,
+    ...lastData.map(a => [
+      escape(a.name), escape(a.programme), escape(a.currentRole),
+      escape(a.currentEmployer), escape(a.industry),
+      escape(a.graduationYear), escape(a.linkedInUrl),
+    ].join(',')),
+    `""`,
+    `"--- Summary ---"`,
+    `"Total Alumni Exported: ${lastData.length}"`,
+    `"Programmes Represented: ${programmes.join(' | ') || 'N/A'}"`,
+    `"Industries Represented: ${industries.join(' | ') || 'N/A'}"`,
+  ];
+
+  const filename = `alumni-report-${new Date().toISOString().split('T')[0]}.csv`;
+  downloadTextFile(filename, lines.join('\n'), 'text/csv');
+  showMessage(`Exported ${lastData.length} alumni to ${filename}`, 'success');
+});
 
     document.getElementById('exportAlumniPdf').addEventListener('click', async () => {
-      const html = document.getElementById('alumniResults').innerHTML;
-      await exportSectionToPdf('Filtered Alumni', html);
-    });
+  if (!lastData.length) {
+    showMessage('No alumni data to export.', 'danger');
+    return;
+  }
+
+  const filters = {
+    search:    document.getElementById('alumniSearch').value    || 'None',
+    programme: document.getElementById('filterProgramme').value || 'None',
+    year:      document.getElementById('filterYear').value      || 'None',
+    industry:  document.getElementById('filterIndustry').value  || 'None',
   };
 
-  // ─── CHARTS ───────────────────────────────────────────────────────────────
+  const programmes = [...new Set(lastData.map(a => a.programme).filter(Boolean))];
+  const industries  = [...new Set(lastData.map(a => a.industry).filter(Boolean))];
+
+  const tableRows = lastData.map((a, i) => `
+    <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.name || 'N/A'}</td>
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.programme || 'N/A'}</td>
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.currentRole || 'N/A'}</td>
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.currentEmployer || 'N/A'}</td>
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.industry || 'N/A'}</td>
+      <td style="padding:8px 10px;border:1px solid #e2e8f0">${a.graduationYear || 'N/A'}</td>
+    </tr>`).join('');
+
+  const bodyHtml = `
+    <!-- Filters applied -->
+    <div style="
+      background:#eff6ff;
+      border:1px solid #bfdbfe;
+      border-radius:6px;
+      padding:10px 14px;
+      margin-bottom:16px;
+      font-size:12px;
+      color:#1d4ed8;
+    ">
+      <strong>Filters applied:</strong>
+      Search: ${escapeHtml(filters.search)} &nbsp;|&nbsp;
+      Programme: ${escapeHtml(filters.programme)} &nbsp;|&nbsp;
+      Year: ${escapeHtml(filters.year)} &nbsp;|&nbsp;
+      Industry: ${escapeHtml(filters.industry)}
+    </div>
+
+    <!-- Data table -->
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px">
+      <thead>
+        <tr style="background:#0f172a;color:white">
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Full Name</th>
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Programme</th>
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Current Role</th>
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Employer</th>
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Industry</th>
+          <th style="padding:10px;text-align:left;border:1px solid #1e293b">Grad. Year</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+
+    <!-- Summary box -->
+    <div style="
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      border-left:4px solid #3b82f6;
+      border-radius:4px;
+      padding:12px 16px;
+      font-size:11px;
+      color:#475569;
+    ">
+      <div style="font-weight:bold;margin-bottom:6px;color:#0f172a">Export Summary</div>
+      <div>Total records exported: <strong>${lastData.length}</strong></div>
+      <div>Programmes represented: <strong>${programmes.join(', ') || 'N/A'}</strong></div>
+      <div>Industries represented: <strong>${industries.join(', ') || 'N/A'}</strong></div>
+    </div>
+  `;
+
+  await exportSectionToPdf('Filtered Alumni Report', bodyHtml, {
+    filters: `Search: ${filters.search} | Programme: ${filters.programme} | Year: ${filters.year} | Industry: ${filters.industry}`,
+    totalRecords: lastData.length,
+    section: 'Alumni Directory',
+  });
+
+  showMessage(`PDF exported — ${lastData.length} alumni`, 'success');
+});
+  };
+
+  // CHARTS
 
   const loadCharts = async () => {
-    chartInstances.forEach(c => c.destroy());
-    chartInstances.clear();
-    renderLoadingState('Loading chart datasets with insight indicators...');
-    contentArea.innerHTML = `
-      <h2>Analytics Charts</h2>
-      <div class="interactive-panel">
-        <span class="pill">Bar + Line + Pie + Radar + Doughnut</span>
-        <span class="pill">Color-coded Insights</span>
-        <span class="pill">Tooltip Percentages</span>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <button id="downloadAllCharts" class="btn-primary">Download Chart Images</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-        <div><h3>Skills Gap</h3><canvas id="skillsChart" style="max-height:300px"></canvas></div>
-        <div><h3>Industry Distribution</h3><canvas id="industryChart" style="max-height:300px"></canvas></div>
-        <div><h3>Industry Distribution (Pie)</h3><canvas id="industryPieChart" style="max-height:300px"></canvas></div>
-        <div><h3>Programme Distribution</h3><canvas id="programmeChart" style="max-height:300px"></canvas></div>
-        <div><h3>Graduation Years</h3><canvas id="yearsChart" style="max-height:300px"></canvas></div>
-        <div><h3>Bidding Trends</h3><canvas id="biddingChart" style="max-height:300px"></canvas></div>
-        <div><h3>Sponsorships</h3><canvas id="sponsorChart" style="max-height:300px"></canvas></div>
-        <div><h3>Career Trends</h3><canvas id="careerChart" style="max-height:300px"></canvas></div>
-        <div><h3>Top Certifications (Radar)</h3><canvas id="certChart" style="max-height:300px"></canvas></div>
-      </div>`;
+  chartInstances.forEach(c => c.destroy());
+  chartInstances.clear();
+  renderLoadingState('Loading chart datasets with insight indicators...');
 
-    async function renderChart(canvasId, endpoint, overrideType = null) {
-      try {
-        // BUG FIX: backend returns { type, labels, datasets } — use datasets directly,
-        // NOT data.values (which never existed)
-        const data = await apiFetch(`/charts/${endpoint}`);
-        const ctx  = document.getElementById(canvasId)?.getContext('2d');
-        if (!ctx) return;
-        const percentages = data.percentages || [];
-        const insights = data.insights || [];
-        const chart = new Chart(ctx, {
-          type: overrideType || data.type || 'bar',
-          data: {
-            labels:   data.labels   || [],
-            datasets: data.datasets || [],
-          },
-          options: {
-            responsive: true,
-            animation: { duration: 700 },
-            scales: {
-              x: { title: { display: true, text: 'Category / Time' } },
-              y: { title: { display: true, text: 'Value' }, beginAtZero: true },
+  // Chart-specific configuration — axis labels, types, and scale settings
+  const CHART_CONFIG = {
+    skillsGap: {
+      title: 'Skills Gap Analysis',
+      xLabel: 'Certification Issuer',
+      yLabel: 'Number of alumni',
+      type: null, // use backend type
+      isCartesian: true,
+    },
+    industryDistribution: {
+      title: 'Industry Distribution',
+      xLabel: null,
+      yLabel: null,
+      type: 'doughnut',
+      isCartesian: false,
+    },
+    industryPie: {
+      title: 'Industry Distribution (Pie)',
+      xLabel: null,
+      yLabel: null,
+      type: 'pie',
+      isCartesian: false,
+    },
+    programmeDistribution: {
+      title: 'Programme Distribution',
+      xLabel: 'Programme',
+      yLabel: 'Number of alumni',
+      type: null,
+      isCartesian: true,
+    },
+    graduationYears: {
+      title: 'Graduation Year Trends',
+      xLabel: 'Graduation year',
+      yLabel: 'Number of alumni',
+      type: null,
+      isCartesian: true,
+    },
+    biddingTrends: {
+      title: 'Daily Bidding Trends (Last 7 Days)',
+      xLabel: 'Date',
+      yLabel: 'Number of bids',
+      type: null,
+      isCartesian: true,
+    },
+    sponsorships: {
+      title: 'Sponsorship Distribution by Organisation',
+      xLabel: null,
+      yLabel: null,
+      type: 'doughnut',
+      isCartesian: false,
+    },
+    careerTrends: {
+      title: 'Career Trends Over Time',
+      xLabel: 'Year',
+      yLabel: 'Employment starts',
+      type: null,
+      isCartesian: true,
+    },
+    certifications: {
+      title: 'Top Certifications Held',
+      xLabel: null,
+      yLabel: null,
+      type: 'radar',
+      isCartesian: false,
+    },
+  };
+
+  // Build a custom HTML legend for a chart
+  function buildLegend(labels = [], colors = [], percentages = []) {
+    if (!labels.length) return '';
+    return `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:12px;color:#475569">
+        ${labels.map((label, i) => {
+          const color = Array.isArray(colors[i]) ? colors[i] : (colors[i] || '#94a3b8');
+          const pct = percentages[i] !== undefined ? ` — ${percentages[i]}%` : '';
+          return `<span style="display:flex;align-items:center;gap:5px">
+            <span style="width:12px;height:12px;border-radius:3px;background:${escapeHtml(color)};flex-shrink:0"></span>
+            <span>${escapeHtml(label)}${pct}</span>
+          </span>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // Build Chart.js options 
+  function buildOptions(config, percentages = []) {
+    const baseOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700 },
+      plugins: {
+        legend: { display: false }, // always use custom HTML legend
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label(context) {
+              const value = context.raw;
+              const pct = percentages[context.dataIndex];
+              const label = context.dataset.label || context.label || '';
+              if (pct !== undefined) return `${label}: ${value} (${pct}%)`;
+              return `${label}: ${value}`;
             },
-            plugins: {
-              legend: { position: 'bottom' },
-              tooltip: {
-                enabled: true,
-                callbacks: {
-                  label(context) {
-                    const value = context.raw;
-                    const pct = percentages[context.dataIndex];
-                    if (pct === undefined) return `${context.dataset.label || 'Value'}: ${value}`;
-                    return `${context.dataset.label || 'Value'}: ${value} (${pct}%)`;
-                  },
-                },
-              },
-            },
           },
-        });
-        chartInstances.set(canvasId, chart);
-        const canvas = document.getElementById(canvasId);
-        if (canvas && insights.length) {
-          const wrapper = canvas.closest('div');
-          if (wrapper) wrapper.insertAdjacentHTML('beforeend', insightLegendHtml(insights));
-        }
-      } catch (err) {
-        const el = document.getElementById(canvasId);
-        if (el) el.parentElement.innerHTML += `<p class="error">${err.message}</p>`;
+        },
+      },
+    };
+
+    // Cartesian charts get proper axis labels
+    if (config.isCartesian) {
+      baseOptions.scales = {
+        x: {
+          title: {
+            display: !!config.xLabel,
+            text: config.xLabel || '',
+            font: { size: 12 },
+            color: '#64748b',
+          },
+          ticks: { maxRotation: 45, autoSkip: true },
+        },
+        y: {
+          title: {
+            display: !!config.yLabel,
+            text: config.yLabel || '',
+            font: { size: 12 },
+            color: '#64748b',
+          },
+          beginAtZero: true,
+        },
+      };
+    }
+
+    // Radar charts get their own scale config
+    if (config.type === 'radar') {
+      baseOptions.scales = {
+        r: {
+          beginAtZero: true,
+          ticks: { font: { size: 11 } },
+        },
+      };
+    }
+
+    // Pie/doughnut charts get no scales at all
+    if (config.type === 'pie' || config.type === 'doughnut') {
+      delete baseOptions.scales;
+    }
+
+    return baseOptions;
+  }
+
+  // Render a single chart into a card
+  async function renderChart(canvasId, endpoint, config, overrideType = null) {
+    const card = document.getElementById(`card-${canvasId}`);
+    try {
+      const data = await apiFetch(`/charts/${endpoint}`);
+      const ctx = document.getElementById(canvasId)?.getContext('2d');
+      if (!ctx) return;
+
+      const chartType = overrideType || config.type || data.type || 'bar';
+      const percentages = data.percentages || [];
+      const insights = data.insights || [];
+
+      // Extract colors from dataset for legend
+      const dataset = (data.datasets || [])[0] || {};
+      const rawColors = Array.isArray(dataset.backgroundColor)
+        ? dataset.backgroundColor
+        : [dataset.borderColor || dataset.backgroundColor || '#94a3b8'];
+
+      const chart = new Chart(ctx, {
+        type: chartType,
+        data: {
+          labels: data.labels || [],
+          datasets: data.datasets || [],
+        },
+        options: buildOptions(config, percentages),
+      });
+
+      chartInstances.set(canvasId, chart);
+
+      // Inject custom HTML legend
+      const legendEl = document.getElementById(`legend-${canvasId}`);
+      if (legendEl) {
+        legendEl.innerHTML = buildLegend(data.labels || [], rawColors, percentages);
+      }
+
+      // Inject insight badges
+      const insightEl = document.getElementById(`insight-${canvasId}`);
+      if (insightEl && insights.length) {
+        const label = { critical: 'Critical gap', significant: 'Significant gap', emerging: 'Emerging trend' };
+        insightEl.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${insights.slice(0, 5).map((ins, i) => `
+            <span class="insight-badge insight-${ins}" title="${escapeHtml(data.labels?.[i] || '')}">
+              ${label[ins] || ins}${data.labels?.[i] ? ': ' + escapeHtml(String(data.labels[i]).slice(0, 20)) : ''}
+            </span>`).join('')}
+        </div>`;
+      }
+
+      if (card) card.classList.remove('chart-loading');
+    } catch (err) {
+      if (card) {
+        card.innerHTML += `<p class="error" style="margin-top:8px">${escapeHtml(err.message)}</p>`;
+        card.classList.remove('chart-loading');
       }
     }
+  }
 
-    await Promise.all([
-      renderChart('skillsChart',    'skillsGap'),
-      renderChart('industryChart',  'industryDistribution'),
-      renderChart('industryPieChart', 'industryDistribution', 'pie'),
-      renderChart('programmeChart', 'programmeDistribution'),
-      renderChart('yearsChart',     'graduationYears'),
-      renderChart('biddingChart',   'biddingTrends'),
-      renderChart('sponsorChart',   'sponsorships'),
-      renderChart('careerChart',    'careerTrends'),
-      renderChart('certChart',      'certifications'),
-    ]);
+  // Build chart card HTML
+  function chartCard(id, title) {
+    return `
+      <div id="card-${id}" class="card chart-loading" style="display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0;font-size:0.95rem;font-weight:600;color:#0f172a">${escapeHtml(title)}</h3>
+          <button class="btn-primary" style="padding:5px 10px;font-size:0.78rem;min-width:unset"
+            onclick="(function(){
+              const chart = window.__chartInstances?.get('${id}');
+              if(!chart) return;
+              const a = document.createElement('a');
+              a.href = chart.toBase64Image();
+              a.download = '${id}.png';
+              a.click();
+            })()">Save PNG</button>
+        </div>
+        <div style="position:relative;height:280px;width:100%">
+          <canvas id="${id}" role="img" aria-label="${escapeHtml(title)} chart"></canvas>
+        </div>
+        <div id="legend-${id}"></div>
+        <div id="insight-${id}"></div>
+      </div>`;
+  }
 
-    document.getElementById('downloadAllCharts').addEventListener('click', () => {
-      chartInstances.forEach((chart, id) => {
-        const a = document.createElement('a');
-        a.href = chart.toBase64Image();
-        a.download = `${id}.png`;
-        a.click();
-      });
-    });
-  };
+  contentArea.innerHTML = `
+    <h2>Analytics Charts</h2>
+    <div class="interactive-panel">
+      <span class="pill">Bar + Line + Pie + Radar + Doughnut</span>
+      <span class="pill">Color-coded insights</span>
+      <span class="pill">Custom legends</span>
+      <span class="pill">Proper axis labels</span>
+    </div>
+    <div style="margin-bottom:12px">
+      <button id="downloadAllCharts" class="btn-primary">Download All Charts</button>
+    </div>
+    <div class="charts-grid">
+      ${chartCard('skillsChart',      CHART_CONFIG.skillsGap.title)}
+      ${chartCard('industryChart',    CHART_CONFIG.industryDistribution.title)}
+      ${chartCard('industryPieChart', CHART_CONFIG.industryPie.title)}
+      ${chartCard('programmeChart',   CHART_CONFIG.programmeDistribution.title)}
+      ${chartCard('yearsChart',       CHART_CONFIG.graduationYears.title)}
+      ${chartCard('biddingChart',     CHART_CONFIG.biddingTrends.title)}
+      ${chartCard('sponsorChart',     CHART_CONFIG.sponsorships.title)}
+      ${chartCard('careerChart',      CHART_CONFIG.careerTrends.title)}
+      ${chartCard('certChart',        CHART_CONFIG.certifications.title)}
+    </div>`;
 
-  // ─── API KEY USAGE LOGS ───────────────────────────────────────────────────
+  // Expose chart instances globally so per-card PNG buttons can access them
+  window.__chartInstances = chartInstances;
+
+  // Render all charts in parallel
+  await Promise.all([
+    renderChart('skillsChart',      'skillsGap',             CHART_CONFIG.skillsGap),
+    renderChart('industryChart',    'industryDistribution',  CHART_CONFIG.industryDistribution),
+    renderChart('industryPieChart', 'industryDistribution',  CHART_CONFIG.industryPie, 'pie'),
+    renderChart('programmeChart',   'programmeDistribution', CHART_CONFIG.programmeDistribution),
+    renderChart('yearsChart',       'graduationYears',       CHART_CONFIG.graduationYears),
+    renderChart('biddingChart',     'biddingTrends',         CHART_CONFIG.biddingTrends),
+    renderChart('sponsorChart',     'sponsorships',          CHART_CONFIG.sponsorships),
+    renderChart('careerChart',      'careerTrends',          CHART_CONFIG.careerTrends),
+    renderChart('certChart',        'certifications',        CHART_CONFIG.certifications),
+  ]);
+
+  // Download all charts with delay to avoid browser blocking
+  document.getElementById('downloadAllCharts').addEventListener('click', async () => {
+    for (const [id, chart] of chartInstances) {
+      const a = document.createElement('a');
+      a.href = chart.toBase64Image();
+      a.download = `${id}.png`;
+      a.click();
+      await new Promise(r => setTimeout(r, 350));
+    }
+  });
+};
+
+  //API KEY USAGE LOGS 
 
   const loadUsageLogs = async () => {
-    renderLoadingState('Loading API usage logs, scopes, and endpoint analytics...');
-    try {
-      const [res, endpointStatsRes] = await Promise.all([
-        apiFetch('/api-keys/usage'),
-        apiFetch('/api-keys/endpointStats'),
-      ]);
-      const logs = res.data || [];
-      const endpointStats = endpointStatsRes?.data?.mostUsedEndpoints || {};
+  renderLoadingState('Loading API usage logs, scopes, and endpoint analytics...');
+  try {
+    const [res, endpointStatsRes] = await Promise.all([
+      apiFetch('/api-keys/usage'),
+      apiFetch('/api-keys/endpointStats'),
+    ]);
+    const logs = res.data || [];
+    const endpointStats = endpointStatsRes?.data?.mostUsedEndpoints || {};
 
-      contentArea.innerHTML = `
-        <h2>Security Audit Trail</h2>
-        <div class="card" style="margin-bottom:16px">
-          <h3>Client Access Scoping</h3>
-          <p><strong>Analytics Dashboard key scopes:</strong> <code>read:alumni</code>, <code>read:analytics</code></p>
-          <p><strong>Mobile AR key scopes:</strong> <code>read:featured</code>, <code>read:alumni</code>, <code>read:sponsors</code>, <code>read:events</code></p>
-          <p class="insight">This dashboard uses the analytics API key only, so mobile-only endpoints are not used here.</p>
-        </div>
-        <table class="data-table">
-          <thead><tr><th>Key Name</th><th>Scopes</th><th>Total Requests</th><th>Today</th><th>Last Used</th><th>Active</th></tr></thead>
-          <tbody>
-            ${logs.map(l => `
+    contentArea.innerHTML = `
+      <h2>Security Audit Trail</h2>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3>Client Access Scoping</h3>
+        <p><strong>Analytics Dashboard (k4):</strong> <code>read:alumni</code>, <code>read:analytics</code></p>
+        <p><strong>AR Client (k1):</strong> <code>read:featured</code>, <code>read:alumni_of_day</code></p>
+        <p><strong>Mobile App (k2):</strong> <code>read:featured</code>, <code>read:alumni</code>, <code>read:alumni_of_day</code>, <code>read:sponsors</code>, <code>read:events</code>, <code>read:donations</code></p>
+        <p><strong>Revoked Key (k3):</strong> <code>active: false</code> — demonstrates key revocation</p>
+        <p class="insight">Each client receives only the minimum scopes required. The analytics dashboard cannot access AR or donation endpoints, and the AR client cannot access analytics.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3>Client Access Architecture</h3>
+        <p class="insight">Each client platform is issued a scoped API key with minimum required permissions only — principle of least privilege.</p>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
               <tr>
-                <td>${l.keyName || l.name || 'N/A'}</td>
-                <td>${(l.scopes || []).join(', ')}</td>
-                <td>${l.totalRequests || 0}</td>
-                <td>${l.requestsToday || 0}</td>
-                <td>${l.lastUsedAt ? new Date(l.lastUsedAt).toLocaleString() : 'Never'}</td>
-                <td>${l.active ? '✓' : '✗'}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-        <div class="card" style="margin-top:16px">
-          <h3>Most Accessed Endpoints (Usage Statistics)</h3>
-          <div class="data-table-container">
-            <table class="data-table">
-              <thead><tr><th>Endpoint</th><th>Requests</th></tr></thead>
-              <tbody>
-                ${Object.entries(endpointStats).map(([endpoint, hits]) => `
-                  <tr><td>${endpoint}</td><td>${hits}</td></tr>
-                `).join('') || '<tr><td colspan="2">No endpoint usage yet.</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
-    } catch (err) {
-      contentArea.innerHTML = `<div class="error">Error loading logs: ${err.message}</div>`;
-    }
-  };
+                <th>Client Platform</th>
+                <th>Permissions Granted</th>
+                <th>Cannot Access</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Analytics Dashboard</strong></td>
+                <td><code>read:alumni</code>, <code>read:analytics</code></td>
+                <td>AR endpoints, donations, events, sponsors</td>
+              </tr>
+              <tr>
+                <td><strong>Mobile AR App</strong></td>
+                <td><code>read:alumni_of_day</code>, <code>read:featured</code>, <code>read:alumni</code>, <code>read:sponsors</code>, <code>read:events</code>, <code>read:donations</code></td>
+                <td>Analytics endpoints, chart data, dashboard metrics</td>
+              </tr>
+              <tr>
+                <td><strong>AR Client</strong></td>
+                <td><code>read:featured</code>, <code>read:alumni_of_day</code></td>
+                <td>Analytics, alumni directory, sponsors, events</td>
+              </tr>
+              <tr>
+                <td><strong>Revoked Key</strong></td>
+                <td><em>None — revoked</em></td>
+                <td>All endpoints blocked</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="insight" style="margin-top:10px">A compromised analytics dashboard key cannot access AR endpoints, and vice versa — enforced by <code>permissionsMiddleware.js</code> on every route.</p>
+      </div>
 
-  // ─── BIDDING ───────────────────────────────────────────────────────────────
+      <table class="data-table">
+        <thead><tr><th>Key Name</th><th>Scopes</th><th>Total Requests</th><th>Today</th><th>Last Used</th><th>Active</th></tr></thead>
+        <tbody>
+          ${logs.map(l => `
+            <tr>
+              <td>${l.keyName || l.name || 'N/A'}</td>
+              <td>${(l.scopes || []).join(', ')}</td>
+              <td>${l.totalRequests || 0}</td>
+              <td>${l.requestsToday || 0}</td>
+              <td>${l.lastUsedAt ? new Date(l.lastUsedAt).toLocaleString() : 'Never'}</td>
+              <td>${l.active ? '✓' : '✗'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Most Accessed Endpoints (Usage Statistics)</h3>
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead><tr><th>Endpoint</th><th>Requests</th></tr></thead>
+            <tbody>
+              ${Object.entries(endpointStats).map(([endpoint, hits]) => `
+                <tr><td>${endpoint}</td><td>${hits}</td></tr>
+              `).join('') || '<tr><td colspan="2">No endpoint usage yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch (err) {
+    contentArea.innerHTML = `<div class="error">Error loading logs: ${err.message}</div>`;
+  }
+};
+
+  // BIDDING
 
   const loadBidding = async () => {
     renderLoadingState('Loading blind bidding status and monthly limits...');
@@ -999,42 +1654,44 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       document.getElementById('placeBidForm')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const amount = parseFloat(document.getElementById('bidAmount').value);
-        try {
-          const response = await apiFetch('/bids', {
-            method: 'POST',
-            body: JSON.stringify({ amount }),
-          });
-          const feedback = response?.data?.feedback?.message || 'Bid submitted.';
-          showMessage(feedback, 'success');
-          loadBidding();
-        } catch (err) {
-          showMessage(`Bid failed: ${err.message}`, 'danger');
-        }
-      });
+      event.preventDefault();
+      const amount = parseFloat(document.getElementById('bidAmount').value);
+      try {
+        // POST to /bids — no bid ID, this creates a new bid
+        const response = await apiFetch('/bids', {
+          method: 'POST',
+          body: JSON.stringify({ amount }),
+        });
+        const feedback = response?.data?.feedback?.message || 'Bid submitted.';
+        showMessage(feedback, 'success');
+        loadBidding();
+      } catch (err) {
+        showMessage(`Bid failed: ${err.message}`, 'danger');
+      }
+    });
 
       document.getElementById('updateBidForm')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const amount = parseFloat(document.getElementById('updatedBidAmount').value);
-        try {
-          const response = await apiFetch(`/bids/${activeBid.id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ amount }),
-          });
-          const feedback = response?.data?.feedback?.message || 'Bid updated.';
-          showMessage(feedback, 'success');
-          loadBidding();
-        } catch (err) {
-          showMessage(`Update failed: ${err.message}`, 'danger');
-        }
-      });
+      event.preventDefault();
+      const amount = parseFloat(document.getElementById('updatedBidAmount').value);
+      try {
+        // PATCH to /bids/:id — updates the existing active bid (increase only)
+        const response = await apiFetch(`/bids/${activeBid.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ amount }),
+        });
+        const feedback = response?.data?.feedback?.message || 'Bid updated.';
+        showMessage(feedback, 'success');
+        loadBidding();
+      } catch (err) {
+        showMessage(`Update failed: ${err.message}`, 'danger');
+      }
+    });
     } catch (err) {
       contentArea.innerHTML = `<div class="error">Failed to load bidding dashboard: ${err.message}</div>`;
     }
   };
 
-  // ─── LOGIN PAGE ───────────────────────────────────────────────────────────
+  // LOGIN PAGE 
 
   const showLoginPage = () => {
     contentArea.innerHTML = `
@@ -1049,8 +1706,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
           <a href="#register">Create account</a>
           <a href="#forgot">Forgot password?</a>
-          <a href="#verify">Verify email</a>
-          <a href="#reset">Reset password</a>
         </div>
       </div>`;
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -1065,17 +1720,42 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="text" id="registerName" placeholder="Full Name" required>
           <input type="email" id="registerEmail" placeholder="University Email" required>
           <input type="password" id="registerPassword" placeholder="Password (8+ chars, upper, number, special)" required>
+          <input type="password" id="registerConfirmPassword" placeholder="Confirm Password" required>
           <button type="submit" class="btn-primary">Register</button>
         </form>
         <div style="margin-top:12px"><a href="#login">Back to login</a></div>
       </div>`;
     document.getElementById('registerForm').addEventListener('submit', async (event) => {
       event.preventDefault();
-      const payload = {
-        name: document.getElementById('registerName').value.trim(),
-        email: document.getElementById('registerEmail').value.trim(),
-        password: document.getElementById('registerPassword').value,
-      };
+      const name = document.getElementById('registerName').value.trim();
+      const email = normalizeEmail(document.getElementById('registerEmail').value);
+      const password = document.getElementById('registerPassword').value;
+      const confirmPassword = document.getElementById('registerConfirmPassword').value;
+      const emailError = validateUniversityEmail(email);
+      const passwordError = validateStrongPassword(password);
+
+      if (!name) {
+        showMessage('Full name is required.', 'danger');
+        return;
+      }
+
+      if (emailError) {
+        showMessage(emailError, 'danger');
+        return;
+      }
+
+      if (passwordError) {
+        showMessage(passwordError, 'danger');
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        showMessage('Passwords do not match.', 'danger');
+        return;
+      }
+
+      const payload = { name, email, password };
+
       try {
         const response = await apiFetch('/auth/register', {
           method: 'POST',
@@ -1090,12 +1770,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const showVerifyPage = () => {
+    const routeToken = getHashQueryParam('token');
     contentArea.innerHTML = `
       <div class="login-container">
         <h2>Verify Email</h2>
         <p>Paste your verification token from the email link.</p>
         <form id="verifyForm">
-          <input type="text" id="verifyToken" placeholder="Verification token" required>
+          <input type="text" id="verifyToken" placeholder="Verification token" value="${escapeHtml(routeToken)}" required>
           <button type="submit" class="btn-primary">Verify Email</button>
         </form>
         <div style="margin-top:12px"><a href="#login">Back to login</a></div>
@@ -1126,7 +1807,14 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     document.getElementById('forgotPasswordForm').addEventListener('submit', async (event) => {
       event.preventDefault();
-      const email = document.getElementById('forgotEmail').value.trim();
+      const email = normalizeEmail(document.getElementById('forgotEmail').value);
+      const emailError = validateUniversityEmail(email);
+
+      if (emailError) {
+        showMessage(emailError, 'danger');
+        return;
+      }
+
       try {
         const response = await apiFetch('/auth/forgotPassword', {
           method: 'POST',
@@ -1140,13 +1828,15 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const showResetPasswordPage = () => {
+    const routeToken = getHashQueryParam('token');
     contentArea.innerHTML = `
       <div class="login-container">
         <h2>Reset Password</h2>
         <p>Use token from your reset email.</p>
         <form id="resetPasswordForm">
-          <input type="text" id="resetToken" placeholder="Reset token" required>
+          <input type="text" id="resetToken" placeholder="Reset token" value="${escapeHtml(routeToken)}" required>
           <input type="password" id="resetPassword" placeholder="New password" required>
+          <input type="password" id="resetConfirmPassword" placeholder="Confirm new password" required>
           <button type="submit" class="btn-primary">Reset Password</button>
         </form>
         <div style="margin-top:12px"><a href="#login">Back to login</a></div>
@@ -1155,6 +1845,24 @@ document.addEventListener('DOMContentLoaded', () => {
       event.preventDefault();
       const token = document.getElementById('resetToken').value.trim();
       const password = document.getElementById('resetPassword').value;
+      const confirmPassword = document.getElementById('resetConfirmPassword').value;
+      const passwordError = validateStrongPassword(password);
+
+      if (!token) {
+        showMessage('Reset token is required.', 'danger');
+        return;
+      }
+
+      if (passwordError) {
+        showMessage(passwordError, 'danger');
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        showMessage('Passwords do not match.', 'danger');
+        return;
+      }
+
       try {
         const response = await apiFetch('/auth/resetPassword', {
           method: 'POST',
@@ -1168,42 +1876,70 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // ─── ROUTER ───────────────────────────────────────────────────────────────
+  // ROUTER 
 
   const navigate = async (hash) => {
     const route = hash || '#dashboard';
+    const routeName = route.split('?')[0];
     const publicRoutes = new Set(['#login', '#register', '#verify', '#forgot', '#reset']);
+
+    if (!publicRoutes.has(routeName) && isSessionTimedOut()) {
+      csrfToken = null;
+      authToken = null;
+      clearSessionActivity();
+      window.location.hash = '#login';
+      showMessage('Your session timed out. Please log in again.', 'warning');
+      showLoginPage();
+      return;
+    }
 
     // Check session on every navigation (server-side check, not localStorage)
     const loggedIn = await checkAuth();
 
-    if (!loggedIn && !publicRoutes.has(route)) {
+    if (!loggedIn && !publicRoutes.has(routeName)) {
+      clearSessionActivity();
       window.location.hash = '#login';
       showLoginPage();
       return;
     }
 
     navLinks.forEach(link => {
-      link.classList.toggle('active', link.getAttribute('href') === route);
+      link.classList.toggle('active', link.getAttribute('href') === routeName);
     });
+
+      const sectionNames = {
+    '#dashboard': 'Dashboard',
+    '#profile':   'My Profile',
+    '#alumni':    'Alumni Directory',
+    '#charts':    'Analytics Charts',
+    '#bidding':   'Blind Bidding',
+    '#api-keys':  'Security Audit',
+    '#login':     'Login',
+    '#register':  'Register',
+    '#verify':    'Verify Email',
+    '#forgot':    'Forgot Password',
+    '#reset':     'Reset Password',
+  };
+  const sectionLabel = document.getElementById('current-section');
+  if (sectionLabel) sectionLabel.textContent = sectionNames[routeName] || 'Dashboard';
 
     contentArea.classList.remove('page-enter');
     // Force reflow so animation restarts on route change.
     void contentArea.offsetWidth;
     contentArea.classList.add('page-enter');
 
-    if (route === '#login')         showLoginPage();
-    else if (route === '#register') showRegisterPage();
-    else if (route === '#verify')   showVerifyPage();
-    else if (route === '#forgot')   showForgotPasswordPage();
-    else if (route === '#reset')    showResetPasswordPage();
-    else if (route === '#dashboard') loadDashboard();
-    else if (route === '#profile')   loadProfile();
-    else if (route === '#alumni')    loadAlumni();
-    else if (route === '#charts')    loadCharts();
-    else if (route === '#bidding')   loadBidding();
-    else if (route === '#api-keys')  loadUsageLogs();
-    else if (route === '#logout')    handleLogout();
+    if (routeName === '#login')         showLoginPage();
+    else if (routeName === '#register') showRegisterPage();
+    else if (routeName === '#verify')   showVerifyPage();
+    else if (routeName === '#forgot')   showForgotPasswordPage();
+    else if (routeName === '#reset')    showResetPasswordPage();
+    else if (routeName === '#dashboard') loadDashboard();
+    else if (routeName === '#profile')   loadProfile();
+    else if (routeName === '#alumni')    loadAlumni();
+    else if (routeName === '#charts')    loadCharts();
+    else if (routeName === '#bidding')   loadBidding();
+    else if (routeName === '#api-keys')  loadUsageLogs();
+    else if (routeName === '#logout')    handleLogout();
     else                             loadDashboard();
   };
 

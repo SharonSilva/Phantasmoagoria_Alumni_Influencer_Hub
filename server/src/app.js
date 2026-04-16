@@ -8,14 +8,14 @@ const cron = require('node-cron');
 const { seed } = require('./db');
 const { swaggerUi, swaggerSpec } = require('./utils/swagger');
 
-// ============= MIDDLEWARE IMPORTS =============
+//  MIDDLEWARE IMPORTS 
 const { apiLimiter, authLimiter, bidLimiter } = require('./middleware/rateLimitMiddleware');
 const { sanitizeInputs } = require('./middleware/validationMiddleware');
 const { errorHandler, asyncHandler } = require('./middleware/errorHandler');
 const setupResponseHandlers = require('./middleware/responseHandler');
 const { authenticate, authenticateKey, requireAdmin, validateCsrf, generateCsrfToken } = require('./middleware/Auth');
 
-// ============= ROUTE IMPORTS =============
+// ROUTE IMPORTS
 const authRouter = require('./routes/auth');
 const profileRouter = require('./routes/profile');
 const bidsRouter = require('./routes/bids');
@@ -34,7 +34,7 @@ const usageRouter = require('./routes/usage');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ============= SECURITY MIDDLEWARE =============
+//  SECURITY MIDDLEWARE 
 
 // 1. Helmet Security Headers
 app.use(helmet({
@@ -57,12 +57,12 @@ app.use(cors({
   credentials: true
 }));
 
-// ============= BODY PARSING MIDDLEWARE =============
+//  BODY PARSING MIDDLEWARE 
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// ============= CUSTOM MIDDLEWARE =============
+//  CUSTOM MIDDLEWARE 
 
 // 3. Response Handler (must be before routes)
 app.use(setupResponseHandlers);
@@ -78,12 +78,12 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-// ============= STATIC FILES =============
+// STATIC FILES 
 
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || './uploads')));
 app.use(express.static(path.join(__dirname, '../public')));
 
-// ============= SWAGGER DOCUMENTATION =============
+// SWAGGER DOCUMENTATION 
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Alumni Influencers API Docs',
@@ -92,7 +92,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
 
-// ============= RATE LIMITING =============
+// RATE LIMITING 
 
 // Apply general API rate limit
 app.use('/api', apiLimiter);
@@ -107,7 +107,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.use('/api/bids', bidLimiter);
 }
 
-// ============= PUBLIC ROUTES (No Auth Required) =============
+//  PUBLIC ROUTES (No Auth Required)
 
 app.use('/api/auth', authRouter);
 app.use('/api/public', publicRouter);
@@ -117,7 +117,7 @@ app.get('/api/csrf-token', authenticate, (req, res) => {
   res.json({ success: true, data: { csrfToken: generateCsrfToken(req.user.id) } });
 });
 
-// ============= PROTECTED ROUTES (Require Authentication) =============
+// PROTECTED ROUTES (Require Authentication)
 
 // User must be authenticated for these routes
 const csrfGuard = (req, res, next) => {
@@ -144,13 +144,13 @@ app.use('/api/keys', authenticate, requireAdmin, csrfGuard, apiKeysRouter);
 // Usage stats routes apply their own route-level auth strategy
 app.use('/api/usage', usageRouter);
 
-// ============= PASSWORD RESET REDIRECT =============
+//  PASSWORD RESET REDIRECT 
 
 app.get('/api/auth/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// ============= 404 HANDLER =============
+// 404 HANDLER 
 
 app.use((req, res) => {
   res.status(404).json({
@@ -159,11 +159,11 @@ app.use((req, res) => {
   });
 });
 
-// ============= GLOBAL ERROR HANDLER (MUST BE LAST) =============
+// GLOBAL ERROR HANDLER
 
 app.use(errorHandler);
 
-// ============= CRON JOBS =============
+// CRON JOBS 
 
 const WINNER_HOUR = process.env.WINNER_SELECT_HOUR_UTC || process.env.BID_CLOSE_HOUR_UTC || '18';
 if (process.env.NODE_ENV !== 'test') {
@@ -203,16 +203,16 @@ if (process.env.NODE_ENV !== 'test') {
   console.log(`[CRON] Winner selection scheduled at ${WINNER_HOUR}:00 UTC daily`);
 }
 
-// ============= SERVER STARTUP =============
+//  SERVER STARTUP
 
 async function start() {
   try {
     await seed();
     if (process.env.NODE_ENV !== 'test') {
       app.listen(PORT, () => {
-        console.log(`\n  ✅ Alumni Influencers API → http://localhost:${PORT}`);
-        console.log(`  ✅ Web App → http://localhost:${PORT}`);
-        console.log(`  ✅ Swagger Docs → http://localhost:${PORT}/api-docs`);
+        console.log(`\n Alumni Influencers API → http://localhost:${PORT}`);
+        console.log(`  Web App → http://localhost:${PORT}`);
+        console.log(`  Swagger Docs → http://localhost:${PORT}/api-docs`);
         console.log(`\n  Environment: ${process.env.NODE_ENV || 'development'}`);
       });
     }

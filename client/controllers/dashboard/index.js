@@ -5,8 +5,6 @@
  * Fetches analytics data from server and serves it to the frontend.
  * Uses API key auth (read:analytics scope) — NOT JWT session auth.
  * 
- * BUG FIX: Previous version called /bids/history which requires JWT session auth,
- * but the analytics dashboard authenticates via API key only.
  * Solution: use /api/dashboard and /api/dashboard/bidding-analytics instead.
  */
 
