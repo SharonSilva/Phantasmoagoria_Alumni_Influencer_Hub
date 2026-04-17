@@ -107,7 +107,11 @@ module.exports = {
     return bidMutation(req, res, 'post', '/bids', { amount: req.body.amount });
   },
 
-  update: async function(req, res) {
+  increase: async function(req, res) {
     return bidMutation(req, res, 'patch', `/bids/${req.params.bids_id}`, { amount: req.body.amount });
   },
+
+  update: async function(req, res) {
+  return bidMutation(req, res, 'patch', `/bids/${req.params.bids_id}`, { amount: req.body.amount });
+},
 };

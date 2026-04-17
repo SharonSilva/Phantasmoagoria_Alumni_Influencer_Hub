@@ -1780,7 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // PATCH to /bids/:id — updates the existing active bid (increase only)
         const response = await apiFetch(`/bids/${activeBid.id}`, {
-          method: 'PATCH',
+          method: 'PUT',
           body: JSON.stringify({ amount }),
         });
         const feedback = response?.data?.feedback?.message || 'Bid updated.';

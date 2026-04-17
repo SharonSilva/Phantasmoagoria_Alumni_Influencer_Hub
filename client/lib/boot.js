@@ -42,6 +42,11 @@ module.exports = function(parent, options) {
           method = 'put';
           url = '/' + controllerName + '/:' + controllerName + '_id';
           break;
+        case 'patch':
+          case 'increase':
+            method = 'patch';
+            url = '/' + controllerName + '/:' + controllerName + '_id';
+            break;
         case 'create':
           method = 'post';
           url = '/' + controllerName;
