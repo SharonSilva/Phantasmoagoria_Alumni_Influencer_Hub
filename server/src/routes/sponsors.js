@@ -17,7 +17,7 @@ router.post('/:sponsorId/offers',           authenticate, requireAdmin, [
   body('offerAmount').isFloat({ min: 1 }),
 ], ctrl.makeOffer);
 
-router.patch('/offers/:offerId/respond',    authenticate, [
+router.patch('/offers/:offerId/respond', authenticate, [
   body('decision').isIn(['accepted', 'declined']),
 ], ctrl.respondToOffer);
 
