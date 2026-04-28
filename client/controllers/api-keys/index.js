@@ -40,7 +40,6 @@ module.exports = {
 
   /**
    * GET /api-keys/:api_keys_id → Single API key detail
-   * BUG FIX: response.data.data was double-unwrapping; backend returns { success, data: {...stats} }
    */
   show: async function(req, res) {
     try {
@@ -91,7 +90,6 @@ module.exports = {
 
   /**
    * GET /api-keys/usage → Usage statistics for all keys
-   * BUG FIX: was calling /keys/usage/stats which doesn't exist.
    * Correct server route is GET /api/usage/stats (usageRouter mounted at /usage).
    */
   usage: async function(req, res) {

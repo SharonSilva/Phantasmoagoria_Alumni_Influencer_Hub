@@ -146,7 +146,7 @@ class Bid {
   static maxMonthlyAppearances(userId) {
     const base = 3;
     const bonus = Bid.hasEventBonusThisMonth(userId) ? 1 : 0;
-    return base + bonus;
+    return base + bonus; // 3 or 4
   }
 
   /**

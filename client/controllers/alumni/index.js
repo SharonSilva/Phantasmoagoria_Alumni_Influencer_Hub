@@ -4,8 +4,7 @@ const axios = require('axios');
 const API_BASE = process.env.BACKEND_URL || 'http://localhost:3000/api';
 
 // Build auth headers for backend requests.
-// BUG FIX: Must include X-API-Key with analytics-scoped key (read:alumni).
-// The mobile AR key (east_mobile_v2_def456uvw) only has read:alumni_of_day — wrong scope.
+// The mobile AR key (east_mobile_v2_def456uvw) only has read:alumni_of_day
 function buildHeaders(session) {
   const analyticsKey = process.env.ANALYTICS_API_KEY || 'east_analytics_dashboard_k4';
   return {
@@ -30,7 +29,7 @@ module.exports = {
         params: { programme, graduationYear: year, industry, search, page, limit },
       });
 
-      // BUG FIX: backend wraps in { success, data, meta } — unwrap safely
+
       const raw = response.data.data || response.data;
       const alumni = (Array.isArray(raw) ? raw : []).map(a => ({
         id:              a.id || a.userId,

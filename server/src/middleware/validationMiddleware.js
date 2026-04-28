@@ -7,34 +7,41 @@ const { body, validationResult, query, param } = require('express-validator');
 
 // VALIDATION RULES 
 
-// Auth Validation
+// Auth Validation middleware for user registration
 const validateRegistration = [
+  //Validate email field
   body('email')
-    .trim()
-    .isEmail()
+    .trim() //remove leading whitespaces
+    .isEmail() //Check if the input is a valid email format 
     .withMessage('Invalid email address')
-    .normalizeEmail(),
+    .normalizeEmail(), //Normalize email (lowercase, remove dots for some providers)
+
+  //custom validation to ensure email belongs to the allowed university domain   
   body('email')
     .custom(email => {
+      //check if email ends with the allowed domain 
       if (!email.endsWith('@alumni.eastminster.ac.uk') && !email.endsWith('@eastminster.ac.uk')) {
         throw new Error('Must use university email (@alumni.eastminster.ac.uk or @eastminster.ac.uk)');
       }
-      return true;
+      return true;  //Validation passed
     }),
+    //Validate password field 
   body('password')
-    .isLength({ min: 8 })
+    .isLength({ min: 8 }) //Ensure the min length should be 8 characters 
     .withMessage('Password must be at least 8 characters')
-    .matches(/[A-Z]/)
+    .matches(/[A-Z]/) //Require atleast one uppercase leter 
     .withMessage('Password must contain uppercase letter')
-    .matches(/[0-9]/)
+    .matches(/[0-9]/) //Require atleast one number 
     .withMessage('Password must contain number')
-    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
+    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/) //Require atleast one special character 
     .withMessage('Password must contain special character'),
+
+    //Validate name field 
   body('name')
-    .trim()
-    .notEmpty()
+    .trim() //Remove leading whitespaces 
+    .notEmpty() //Ensure name is not empty 
     .withMessage('Name is required')
-    .isLength({ min: 2, max: 100 })
+    .isLength({ min: 2, max: 100 }) //Restrict name length between 2 and 100 characters 
     .withMessage('Name must be between 2 and 100 characters')
 ];
 

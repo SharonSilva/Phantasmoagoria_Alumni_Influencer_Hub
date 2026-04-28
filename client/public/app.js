@@ -9,7 +9,6 @@
  * which only has read:alumni_of_day scope — analytics endpoints need read:analytics.
  * API keys are now injected server-side; the browser never sends X-API-Key directly.
  * 
- * BUG FIX: chart rendering was using data.values which doesn't exist.
  * Backend returns { type, labels, datasets } — must use data.datasets.
  */
 
@@ -89,22 +88,36 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(email || '').trim().toLowerCase();
   }
 
+  //Validates that the email belongs to an approved university domain
   function validateUniversityEmail(email) {
+    //normalize the email is empty or invalid after normalization 
     const normalizedEmail = normalizeEmail(email);
+    //check if email is empty or invalid after normalization
     if (!normalizedEmail) return 'Email is required.';
+    //List of allowed university domains
     const allowedDomains = [`@${UNIVERSITY_DOMAIN}`, '@eastminster.ac.uk'];
+    //Check if email ends with the allowed domain
+    //endswith() ensure the domain is at the end of the email 
     if (!allowedDomains.some(domain => normalizedEmail.endsWith(domain))) {
       return `Must use a @${UNIVERSITY_DOMAIN} university email.`;
     }
+    //Return an empty string if validation passes (no errors)
     return '';
   }
 
+  //Validates password strength based on basic security rules 
   function validateStrongPassword(password) {
+    //check if password is empty
     if (!password) return 'Password is required.';
+    //Ensure minimum length of 8 characters 
     if (password.length < 8) return 'Password must be at least 8 characters.';
+    //Require at least one uppercase letter(A-Z)
     if (!/[A-Z]/.test(password)) return 'Password must include an uppercase letter.';
+    //Require at least one numeric digit (0-9)
     if (!/[0-9]/.test(password)) return 'Password must include a number.';
+    //Requires atleast one special character (non-alphanumeric)
     if (!/[^A-Za-z0-9]/.test(password)) return 'Password must include a special character.';
+    //Return empty string if all checks pass 
     return '';
   }
 
@@ -116,13 +129,20 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('authLastActivityAt');
   }
 
+  //checks whether the user's session has timed out due to inactivity 
   function isSessionTimedOut() {
+    //Retrieve last recorded user activity timestamp from locallStorage
     const lastActivityAt = Number(localStorage.getItem('authLastActivityAt') || 0);
+    //If no activity timestamp exists , assume session is still valid 
     if (!lastActivityAt) return false;
+    //Compare the current time with last activity time 
+    //If the difference exceeds the session timeout limit, session gets expired 
     return (Date.now() - lastActivityAt) > (SESSION_TIMEOUT_MINUTES * 60 * 1000);
   }
 
+  //Renders a loading skeleton UI while content is being fetched or processed 
   function renderLoadingState(title = 'Loading...') {
+    //Replace main content area with loading placeholer UI 
   contentArea.innerHTML = `
     <div class="page-enter">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
@@ -406,15 +426,22 @@ document.addEventListener('DOMContentLoaded', () => {
       return isBusiness && isDataRole;
     });
 
+    // Extract certification labels (fallback to empty array if undefined )
     const certLabels = certifications.labels || [];
+    //Extract certification data values (safely access first dataset, fallback to empty array)
     const certData = (certifications.datasets && certifications.datasets[0]?.data) || [];
+    // Calculate total number of cloud related certifications 
     const cloudCertCount = certLabels.reduce((sum, label, index) => {
+      //Normalize label to lowercase string for case-insensitive matching 
       const normalized = String(label || '').toLowerCase();
+      // Check if the label contains any cloud-related keyword
       if (cloudKeywords.some(k => normalized.includes(k))) {
+        //If match found, add corresponding data value to total
         return sum + Number(certData[index] || 0);
       }
+      //If not match, keep current sum changed 
       return sum;
-    }, 0);
+    }, 0);          //Intial sum starts at 0 
     const totalCertCount = certData.reduce((sum, val) => sum + Number(val || 0), 0);
 
     const skillsLabels = skillsGap.labels || [];
@@ -424,18 +451,27 @@ document.addEventListener('DOMContentLoaded', () => {
       value: Number(skillsData[idx] || 0),
     })).sort((a, b) => b.value - a.value).slice(0, 3);
 
+    // Calculate total number of Agile related certifications 
     const agileCertCount = certLabels.reduce((sum, label, index) => {
+      //Normalize label to lowercase string for case-sensitive comparison 
       const normalized = String(label || '').toLowerCase();
+      //Check if the label contains any Agile-related keyword
       if (agileKeywords.some(k => normalized.includes(k))) {
+        //If a match is found add the corresponding data value to the total 
         return sum + Number(certData[index] || 0);
       }
       return sum;
     }, 0);
 
+    // Extract bidding trend values safely fallback to empty array if missing 
     const bidValues = (biddingTrend.datasets && biddingTrend.datasets[0]?.data) || [];
+    // Split the data into first half of the timeline 
     const firstHalf = bidValues.slice(0, Math.max(1, Math.floor(bidValues.length / 2)));
     const secondHalf = bidValues.slice(Math.max(1, Math.floor(bidValues.length / 2)));
+    // Helper function to calculate average of an array 
     const avg = arr => arr.length ? arr.reduce((s, v) => s + Number(v || 0), 0) / arr.length : 0;
+    // Calculate momentum percentages 
+    //Compares average of speed of second half vs first half to show growth / decline trend 
     const momentumPct = firstHalf.length ? percent(avg(secondHalf) - avg(firstHalf), avg(firstHalf) || 1) : 0;
 
     const recommendations = [
@@ -817,12 +853,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // DASHBOARD 
-
+  // DASHBOARD loads all required data for the dashboard View
   const loadDashboard = async () => {
+    //Show loading skeleton UI while data is being fetched 
     renderLoadingState('Loading analytics overview and recent winners...');
     try {
-      const [res, alumniRes, skillsRes, certRes, biddingTrendRes] = await Promise.all([
+      //Fetch multiple API endpoints in parallel for better performance 
+      const [
+        res,          // Main dashboard data (eg: stats, summaries) 
+        alumniRes,    // List of alumni (paginated)
+        skillsRes,    // Skills gap chart data 
+        certRes,      // Certifications chart data 
+        biddingTrendRes   //Bidding trends chart data 
+      ] = await Promise.all([
         apiFetch('/dashboard/api'),
         apiFetch('/alumnis?page=1&limit=200'),
         apiFetch('/charts/skillsGap'),
@@ -1089,9 +1132,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   //ALUMNI DIRECTORY
-
   const loadAlumni = async () => {
     const preset = JSON.parse(localStorage.getItem('alumniFilterPreset') || '{}');
+    // Pre-fill inputs with save presets vales before rendering 
     renderLoadingState('Preparing alumni directory, filters, and export tools...');
     contentArea.innerHTML = `
       <h2>Alumni Directory</h2>
@@ -1134,7 +1177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <tbody>
               ${alumni.map(a => `
                 <tr>
-                  <td>${a.name || 'N/A'}</td>
+                  <td>${a.name || 'N/A'}</td>      
                   <td>${a.programme || 'N/A'}</td>
                   <td>${a.currentRole || 'N/A'}</td>
                   <td>${a.currentEmployer || 'N/A'}</td>
@@ -1173,7 +1216,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterProgramme').value = p.programme || '';
       document.getElementById('filterYear').value = p.year || '';
       document.getElementById('filterIndustry').value = p.industry || '';
-      try { await runQuery(); } catch (err) { showMessage(err.message, 'danger'); }
+      try { await runQuery(); } catch (err) { showMessage(err.message, 'danger'); } //automatically applies loaded preset
     });
 
     document.getElementById('exportAlumniCsv').addEventListener('click', () => {
@@ -1785,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const feedback = response?.data?.feedback?.message || 'Bid updated.';
         showMessage(feedback, 'success');
-        loadBidding();
+        loadBidding();                      //reload page to show to show updated status 
       } catch (err) {
         showMessage(`Update failed: ${err.message}`, 'danger');
       }

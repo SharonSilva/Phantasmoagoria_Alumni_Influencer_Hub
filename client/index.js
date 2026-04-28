@@ -29,7 +29,6 @@ if (!module.parent) app.use(logger('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Session support
-// BUG FIX: secret must come from env — never fall back to a hardcoded string in production
 app.use(session({
   resave: false,
   saveUninitialized: false,

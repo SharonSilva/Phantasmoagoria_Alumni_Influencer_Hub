@@ -45,9 +45,7 @@ module.exports = {
 
   /**
    * GET /dashboard/api → Main dashboard metrics
-   * BUG FIX: renamed from 'api' to a custom action so boot.js maps it to GET /dashboard/api.
    * Fetches from /api/dashboard (server DashboardController.getDashboard).
-   * BUG FIX: previous version used location as a proxy for industry — now uses real fields.
    */
   api: async function(req, res) {
     try {
@@ -57,7 +55,6 @@ module.exports = {
         success: true,
         metrics: dashData.metrics,
         breakdown: {
-          // BUG FIX: use actual byProgramme and byIndustry from server response
           byProgramme: dashData.breakdown?.byProgramme || {},
           byIndustry:  dashData.breakdown?.byIndustry  || {},
           byYear:      dashData.breakdown?.byGraduationYear || {},
@@ -73,7 +70,6 @@ module.exports = {
 
   /**
    * GET /dashboard/biddingAnalytics → Bidding stats
-   * BUG FIX: Uses /dashboard/bidding-analytics (API key auth) instead of
    * /bids/history (JWT session auth) which the dashboard client can't access.
    */
   biddingAnalytics: async function(req, res) {

@@ -137,7 +137,6 @@ module.exports = {
   /**
    * POST /auth/logout
    * Properly destroys express-session (req.session = null only works with cookie-session)
-   * BUG FIX: express-session requires req.session.destroy(), not req.session = null
    */
   logout: function(req, res) {
     req.session.destroy(err => {

@@ -9,7 +9,7 @@
 const axios = require('axios');
 const API_BASE = process.env.BACKEND_URL || 'http://localhost:3000/api';
 
-// BUG FIX: Must send analytics-scoped API key, not the mobile AR key.
+
 // Mobile AR key only has read:alumni_of_day — charts need read:analytics.
 function buildHeaders(session) {
   const analyticsKey = process.env.ANALYTICS_API_KEY || 'east_analytics_dashboard_k4';
@@ -106,7 +106,6 @@ module.exports = {
 
   /**
    * GET /charts/biddingTrends
-   * BUG FIX: Was calling /bids/trends which doesn't exist on the server.
    * Correct endpoint is /charts/bidding-trends (served by ChartsController.getBiddingTrends).
    */
   biddingTrends: async function(req, res) {

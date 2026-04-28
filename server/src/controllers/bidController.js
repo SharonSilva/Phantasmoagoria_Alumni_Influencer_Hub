@@ -93,25 +93,25 @@ function placeBid(req, res) {
 
 //updateBid 
 function updateBid(req, res) {
-  if (!handleValidation(req, res)) return;
-  if (!Bid.isBiddingOpen()) {
-    return res.status(400).json({ success: false, message: 'Bidding window has closed.' });
+  if (!handleValidation(req, res)) return;    //new amount is positive 
+  if (!Bid.isBiddingOpen()) {                     
+    return res.status(400).json({ success: false, message: 'Bidding window has closed.' });   //window still open 
   }
 
   const bid = Bid.findById(req.params.bidId);
-  if (!bid)                        return res.status(404).json({ success: false, message: 'Bid not found' });
-  if (bid.userId !== req.user.id)  return res.status(403).json({ success: false, message: 'Forbidden' });
-  if (bid.bidDate !== today())     return res.status(400).json({ success: false, message: "Can only update today's bid" });
-  if (bid.status !== 'active')     return res.status(400).json({ success: false, message: 'Bid is no longer active' });
+  if (!bid)                        return res.status(404).json({ success: false, message: 'Bid not found' });   //3.bid exists 
+  if (bid.userId !== req.user.id)  return res.status(403).json({ success: false, message: 'Forbidden' });                     // owns this bid
+  if (bid.bidDate !== today())     return res.status(400).json({ success: false, message: "Can only update today's bid" });   // todays bid only 
+  if (bid.status !== 'active')     return res.status(400).json({ success: false, message: 'Bid is no longer active' });   // still active 
 
   const newAmount = parseFloat(req.body.amount);
-  if (newAmount <= bid.amount) {
+  if (newAmount <= bid.amount) {                    //Strictly higher amount 
     return res.status(400).json({ success: false, message: 'New amount must be strictly higher than current bid.' });
   }
 
   const profile = Profile.findByUserId(req.user.id);
   const available = Bid.getAvailableBidBalance(req.user.id);
-  if (!profile || available < newAmount) {
+  if (!profile || available < newAmount) {                            //sUFFICIENT BALANCE FOR NEW AMOUNT 
     return res.status(400).json({ success: false, message: `Insufficient bid capacity. Available: £${available}` });
   }
 
@@ -172,7 +172,7 @@ function getBidHistory(req, res) {
       bidDate:     bid.bidDate,
       status:      bid.status,
       submittedAt: bid.submittedAt,
-      // Only reveal amount after bidding is resolved — keeps blind integrity during active window
+      // Only reveal amount after bidding is resolved , keeps blind integrity during active window
       amount:      isResolved ? bid.amount : undefined,
       feedback:    isResolved
         ? null

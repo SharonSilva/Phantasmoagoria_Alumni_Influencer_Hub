@@ -27,35 +27,45 @@ function validateCsrfToken(userId, token) {
   return true;
 }
 
-// JWT Authentication 
+// JWT Authentication middleware that verifies token and attaches user to request
 function authenticate(req, res, next) {
+  //Get authorization header from request
   const authHeader = req.headers['authorization'];
+  //Check if header exists and follows "Bearer <token>" format
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
       success: false,
       message: 'Missing or invalid Authorization header. Format: Bearer <token>',
     });
   }
-
+  //Extract token from header (remove "Bearer")
   const token = authHeader.split(' ')[1];
   try {
+    //Verify JWT using secret key (checks signature + expiry)
     const payload = jwt.verify(token, JWT_SECRET);
+    //Ensure token contains a tokenId (used for session tracking)
     if (!payload.tokenId) {
       return res.status(401).json({ success: false, message: 'Invalid session token' });
     }
+    //Check if session exists and is still active (not expired/revoked)
     const session = Session.findActiveByTokenId(payload.tokenId);
     if (!session) {
       return res.status(401).json({ success: false, message: 'Session is expired or revoked' });
     }
+    //Fetch user linked to token 
     const user = query.getUserById(payload.userId);
     if (!user) {
       return res.status(401).json({ success: false, message: 'Token valid but user not found' });
     }
+    //update session Activity (eg: last used timestamp)
     Session.touch(payload.tokenId);
+    // Attach authenticated user and token payload to request object 
     req.user = user;
     req.auth = payload;
+    //Proceed to next middleware or route handler 
     next();
   } catch (err) {
+    //Handle token errors (expired or invalid)
     return res.status(401).json({
       success: false,
       message: err.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid token',
