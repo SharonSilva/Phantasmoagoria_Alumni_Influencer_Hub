@@ -1883,7 +1883,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!name) {
         showMessage('Full name is required.', 'danger');
-        return;
+        return; //stops here , no api call made
       }
 
       if (emailError) {
@@ -2023,6 +2023,64 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+
+const loadWallet = async () => {
+  renderLoadingState('Loading wallet...');
+  try {
+    const res = await apiFetch('/wallet/balance');
+    const wallet = res.data || {};
+    const transactions = wallet.transactions || [];
+
+    contentArea.innerHTML = `
+      <h2>My Wallet</h2>
+      <div class="card" style="margin-bottom:16px">
+        <h3>Current Balance</h3>
+        <div class="value" style="font-size:2rem;font-weight:700;color:#059669">
+          £${escapeHtml(String(wallet.walletBalance ?? 0))}
+        </div>
+        <p class="insight" style="margin-top:8px">
+          Balance increases when you win a featured slot and sponsors pay out. Your bid cost is deducted on a win.
+        </p>
+      </div>
+      <h3>Transaction History</h3>
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Description</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions.length
+              ? transactions.map(t => `
+                <tr>
+                  <td>
+                    <span style="
+                      padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+                      background:${t.type === 'credit' ? '#f0fdf4' : '#fef2f2'};
+                      color:${t.type === 'credit' ? '#059669' : '#dc2626'}
+                    ">${escapeHtml(t.type || 'N/A')}</span>
+                  </td>
+                  <td style="font-weight:600;color:${t.type === 'credit' ? '#059669' : '#dc2626'}">
+                    ${t.type === 'credit' ? '+' : '-'}£${escapeHtml(String(Math.abs(t.amount ?? 0)))}
+                  </td>
+                  <td>${escapeHtml(t.description || 'N/A')}</td>
+                  <td>${t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</td>
+                </tr>`).join('')
+              : `<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">No transactions yet.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    contentArea.innerHTML = `<div class="error">Failed to load wallet: ${escapeHtml(err.message)}</div>`;
+  }
+};
+
+
   // ROUTER 
 
   const navigate = async (hash) => {
@@ -2087,6 +2145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (routeName === '#bidding')   loadBidding();
     else if (routeName === '#api-keys')  loadUsageLogs();
     else if (routeName === '#logout')    handleLogout();
+    else if (routeName === '#wallet') loadWallet();
     else                             loadDashboard();
   };
 
