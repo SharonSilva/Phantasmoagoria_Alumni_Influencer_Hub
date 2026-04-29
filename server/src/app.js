@@ -142,7 +142,7 @@ app.use('/api/alumni', authenticateKey(['read:alumni']), alumniRouter);
 app.use('/api/export', authenticateKey(['read:analytics', 'read:alumni']), exportRouter);
 
 // Admin only routes
-app.use('/api/sponsors', authenticate, requireAdmin, csrfGuard, sponsorsRouter);
+app.use('/api/sponsors', authenticate, csrfGuard, sponsorsRouter);
 app.use('/api/keys', authenticate, requireAdmin, csrfGuard, apiKeysRouter);
 
 // Usage stats routes apply their own route-level auth strategy
