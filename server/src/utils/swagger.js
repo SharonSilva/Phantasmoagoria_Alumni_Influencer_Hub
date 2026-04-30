@@ -672,7 +672,7 @@ All seed users have password \`Password1!\`
       get: { tags: ['Sponsors'], summary: 'List sponsors', security: [{ bearerAuth: [] }], responses: { 200: { description: 'Array' } } },
       post: {
         tags: ['Sponsors'], summary: '(Admin) Create sponsor',
-        description: '⚠️ Entire /api/sponsors mount requires JWT + admin. Alumni cannot access any /api/sponsors route.',
+        description: ' Entire /api/sponsors mount requires JWT + admin. Alumni cannot access any /api/sponsors route.',
         security: [{ bearerAuth: [] }, { csrfToken: [] }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'category'],
           properties: {
@@ -710,7 +710,7 @@ All seed users have password \`Password1!\`
       patch: {
         tags: ['Sponsors'],
         summary: 'Accept or decline offer',
-        description: '⚠️ **Known limitation:** The entire /api/sponsors mount requires admin JWT. Alumni accepting offers must be tested via curl directly rather than through this Swagger endpoint. The respond controller itself only requires authenticate() but the mount-level requireAdmin blocks it.',
+        description: 'The entire /api/sponsors mount requires admin JWT. Alumni accepting offers must be tested via curl directly rather than through this Swagger endpoint. The respond controller itself only requires authenticate() but the mount-level requireAdmin blocks it.',
         security: [{ bearerAuth: [] }, { csrfToken: [] }],
         parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Offer ID from POST response' }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['decision'], properties: { decision: { type: 'string', enum: ['accepted', 'declined'] } } } } } },
